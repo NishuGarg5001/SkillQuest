@@ -14,7 +14,7 @@ constexpr int ESC = 27;
 constexpr int SCREEN_WIDTH  = 60;
 constexpr int SCREEN_HEIGHT = 20;
 
-enum game_state
+enum GameState
 {
     QUIT,
     RUNNING,
@@ -23,12 +23,20 @@ enum game_state
     SAVE
 };
 
+enum PlayerState
+{
+    NONE,
+    MINING
+};
+
 class Player 
 {
     int health;
+    int mining;
+    PlayerState player_state;
 
     public:
-        Player() : health(10){}
+        Player() : health(10), mining(1), player_state(NONE){}
 };
 
 class Menu
@@ -71,17 +79,11 @@ class Menu
 
         void renderMenu(std::vector<std::string>& frame_buffer) const
         {
-            
-            int count = 0;
-            for(std::string& row: frame_buffer)
-            {   
-                if(count == static_cast<int>(items.size())) break;
-                std::string x = (count==index?"":"    ")+items[count];
-                x = x + std::string(SCREEN_WIDTH - x.size(), ' ');
-                row = x;
-                count++;
+            for(int i=0; i<static_cast<int>(items.size()); i++)
+            {
+                std::string x = (i==index?"":"    ")+items[i];
+                frame_buffer[i] = x + std::string(SCREEN_WIDTH - x.size(), ' ');
             }
-
         }
 };
 
@@ -89,29 +91,23 @@ class Game
 {
     int fps;
     std::vector<std::string> frame_buffer;
-    game_state state;
+    GameState game_state;
     Player player;
     Menu main_menu, pause_menu, save_menu;
 
     public:
-        Game(int fps,
-            std::vector<std::string> frame_buffer,
-            game_state state,
-            Menu main_menu,
-            Menu pause_menu,
-            Menu save_menu,
-            Player player):
-        fps(fps),
-        frame_buffer(std::move(frame_buffer)),
-        state(state),
-        main_menu(std::move(main_menu)),
-        pause_menu(std::move(pause_menu)),
-        save_menu(std::move(save_menu)),
-        player(std::move(player)){}
+        Game():
+        fps(60),
+        frame_buffer(std::vector<std::string>(SCREEN_HEIGHT, std::string(SCREEN_WIDTH, ' '))),
+        game_state(MAIN),
+        main_menu(Menu({"New Game", "Load Game", "Quit"})),
+        pause_menu(Menu({"Continue", "Save Game", "Quit to Main Menu"})),
+        save_menu(Menu({"Slot 1", "Slot 2", "Slot 3"})),
+        player(Player()){}
 
         void setFPS(int fps)
         {
-            if(fps < 61) this->fps = fps;
+            if(0 < fps < 61) this->fps = fps;
             else this->fps = 60;
         }
 
@@ -125,71 +121,67 @@ class Game
         {
             if (_kbhit())
             {
-                int key = _getch();
-                if(key == KEY_EXTENDED1 || key == KEY_EXTENDED2) key = _getch();
-                switch(state)
+                if(game_state != RUNNING)
                 {
-                    case MAIN:
+                    int key = _getch();
+                    if(key == KEY_EXTENDED1 || key == KEY_EXTENDED2) key = _getch();
+                    switch(game_state)
                     {
-                        if(key == UP) main_menu.moveUp();
-                        else if(key == DOWN) main_menu.moveDown();
-                        else if(key == ENTER)
+                        case MAIN:
                         {
-                            std::string main_menu_item_name = main_menu.currentItem();
-                            if(main_menu_item_name == "New Game" || main_menu_item_name == "Load Game")
+                            if(key == UP) main_menu.moveUp();
+                            else if(key == DOWN) main_menu.moveDown();
+                            else if(key == ENTER)
                             {
-                                state = RUNNING;
-                                if (main_menu_item_name == "New Game") startNewGame();
-                                else loadGame();
+                                std::string main_menu_item_name = main_menu.currentItem();
+                                if(main_menu_item_name == "New Game" || main_menu_item_name == "Load Game")
+                                {
+                                    game_state = RUNNING;
+                                    if (main_menu_item_name == "Load Game") loadGame();
+                                }
+                                else game_state = QUIT;
                             }
-                            else state = QUIT;
+                            break;
                         }
-                        break;
-                    }
-                
-                    case PAUSE:
-                    {
-                        if(key == UP) pause_menu.moveUp();
-                        else if(key == DOWN) pause_menu.moveDown();
-                        else if(key == ENTER)
+                    
+                        case PAUSE:
                         {
-                            std::string pause_menu_item_name = pause_menu.currentItem();
-                            if(pause_menu_item_name == "Continue") state = RUNNING;
-                            else if(pause_menu_item_name == "Save Game") state = SAVE;
-                            else state = MAIN;
+                            if(key == UP) pause_menu.moveUp();
+                            else if(key == DOWN) pause_menu.moveDown();
+                            else if(key == ENTER)
+                            {
+                                std::string pause_menu_item_name = pause_menu.currentItem();
+                                if(pause_menu_item_name == "Continue") game_state = RUNNING;
+                                else if(pause_menu_item_name == "Save Game") game_state = SAVE;
+                                else game_state = MAIN;
+                            }
+                            else if(key == ESC) game_state = RUNNING;
+                            break;
                         }
-                        else if(key == ESC) state = RUNNING;
-                        break;
-                    }
 
-                    case SAVE:
-                    {
-                        if(key == UP) save_menu.moveUp();
-                        else if(key == DOWN) save_menu.moveDown();
-                        else if(key == ENTER)
+                        case SAVE:
                         {
-                            saveGame(save_menu.getIndex());
-                            state = RUNNING;
+                            if(key == UP) save_menu.moveUp();
+                            else if(key == DOWN) save_menu.moveDown();
+                            else if(key == ENTER)
+                            {
+                                saveGame();
+                                game_state = RUNNING;
+                            }
+                            else if(key == ESC) game_state = PAUSE;
+                            break;
                         }
-                        else if(key == ESC) state = PAUSE;
-                        break;
                     }
-
-                    case RUNNING:
-                    {
-                        if(key == ESC) state = PAUSE;
-                        break;
-                    }
+                }
+                else
+                {
+                    std::string command;
+                    std::cin>>command;
                 }
             }
         }
 
-        void startNewGame()
-        {
-            //WIP
-        }
-
-        void saveGame(int index) const
+        void saveGame() const
         {
             //WIP
         }
@@ -217,7 +209,7 @@ class Game
         void renderFrame()
         {
             clearFrame();
-            switch(state)
+            switch(game_state)
             {
                 case MAIN:
                     main_menu.renderMenu(frame_buffer);
@@ -241,37 +233,26 @@ class Game
 
         void runGame()
         {
-            while(true)
+            while(game_state != QUIT)
             {
                 auto frameStart = std::chrono::high_resolution_clock::now();
 
                 handleInput();
                 hideCursor();
-                if(state == RUNNING) updateState();
+                if(game_state == RUNNING) updateState();
                 renderFrame();
-                if(state == QUIT) break;
 
                 std::chrono::milliseconds frameDuration(1000 / fps);
                 auto frameEnd = std::chrono::high_resolution_clock::now();
                 auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameStart);
-                if(elapsed < frameDuration)
-                {
-                    std::this_thread::sleep_for(frameDuration - elapsed);
-                }
+                if(elapsed < frameDuration) std::this_thread::sleep_for(frameDuration - elapsed);
             }
         }
 };
 
 int main()
 {
-    Game game(
-        60,
-        std::vector<std::string>(SCREEN_HEIGHT, std::string(SCREEN_WIDTH, ' ')),
-        MAIN,
-        Menu({"New Game", "Load Game", "Quit"}),
-        Menu({"Continue", "Save Game", "Quit to Main Menu"}),
-        Menu({"Slot 1", "Slot 2", "Slot 3"}),
-        Player());
+    Game game = Game();
     game.runGame();
     return 0;
 }
