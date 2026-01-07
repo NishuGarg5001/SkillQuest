@@ -5,14 +5,18 @@
 #include <chrono>
 #include <thread>
 
-constexpr int KEY_EXTENDED1 = 0;
-constexpr int KEY_EXTENDED2 = 224;
-constexpr int UP = 72;
-constexpr int DOWN = 80;
-constexpr int ENTER = 13;
-constexpr int ESC = 27;
 constexpr int SCREEN_WIDTH  = 60;
 constexpr int SCREEN_HEIGHT = 20;
+
+enum InputKey
+{
+    KEY_EXTENDED1 = 0,
+    KEY_EXTENDED2 = 224,
+    UP = 72,
+    DOWN = 80,
+    ENTER = 13,
+    ESC = 27
+};
 
 enum GameState
 {
@@ -69,12 +73,14 @@ class Menu
 
         void moveUp()
         {
-            if(index > 0) index--;
+            if(index > 0)
+                index--;
         }
 
         void moveDown()
         {
-            if(index < getSize() - 1) index++;
+            if(index < getSize() - 1)
+                index++;
         }
 
         void renderMenu(std::vector<std::string>& frame_buffer) const
@@ -87,10 +93,34 @@ class Menu
         }
 };
 
+class Input
+{
+    std::string command;
+
+    public:
+        Input() : command(""){}
+
+        void showCursor() const
+        {
+            std::cout << "\x1b[?25h";
+        }
+
+        void hideCursor() const
+        {
+            std::cout << "\x1b[?25l";
+        }
+
+        void echo(const char x)
+        {
+            //WIP
+        }
+};
+
 class Game
 {
     int fps;
     std::vector<std::string> frame_buffer;
+    Input input;
     GameState game_state;
     Player player;
     Menu main_menu, pause_menu, save_menu;
@@ -99,6 +129,7 @@ class Game
         Game():
         fps(60),
         frame_buffer(std::vector<std::string>(SCREEN_HEIGHT, std::string(SCREEN_WIDTH, ' '))),
+        input(Input()),
         game_state(MAIN),
         main_menu(Menu({"New Game", "Load Game", "Quit"})),
         pause_menu(Menu({"Continue", "Save Game", "Quit to Main Menu"})),
@@ -107,8 +138,10 @@ class Game
 
         void setFPS(int fps)
         {
-            if(0 < fps < 61) this->fps = fps;
-            else this->fps = 60;
+            if(0 < fps < 61)
+                this->fps = fps;
+            else
+                this->fps = 60;
         }
 
         void clearFrame()
@@ -121,62 +154,123 @@ class Game
         {
             if (_kbhit())
             {
-                if(game_state != RUNNING)
+                int key = _getch();
+                if(key == KEY_EXTENDED1 || key == KEY_EXTENDED2)
+                    key = _getch();
+                switch(game_state)
                 {
-                    int key = _getch();
-                    if(key == KEY_EXTENDED1 || key == KEY_EXTENDED2) key = _getch();
-                    switch(game_state)
+                    case MAIN:
                     {
-                        case MAIN:
+                        switch(key)
                         {
-                            if(key == UP) main_menu.moveUp();
-                            else if(key == DOWN) main_menu.moveDown();
-                            else if(key == ENTER)
+                            case UP:
+                            {
+                                main_menu.moveUp();
+                                break;
+                            }
+                            case DOWN:
+                            {
+                                main_menu.moveDown();
+                                break;
+                            }
+                            case ENTER:
                             {
                                 std::string main_menu_item_name = main_menu.currentItem();
                                 if(main_menu_item_name == "New Game" || main_menu_item_name == "Load Game")
                                 {
                                     game_state = RUNNING;
-                                    if (main_menu_item_name == "Load Game") loadGame();
+                                    if (main_menu_item_name == "Load Game")
+                                        loadGame();
                                 }
-                                else game_state = QUIT;
+                                else
+                                    game_state = QUIT;
+                                break;
                             }
-                            break;
                         }
-                    
-                        case PAUSE:
+                        break;
+                    }
+                    case PAUSE:
+                    {
+                        switch(key)
                         {
-                            if(key == UP) pause_menu.moveUp();
-                            else if(key == DOWN) pause_menu.moveDown();
-                            else if(key == ENTER)
+                            case UP:
+                            {
+                                pause_menu.moveUp();
+                                break;
+                            }
+                            case DOWN:
+                            {
+                                pause_menu.moveDown();
+                                break;
+                            }
+                            case ENTER:
                             {
                                 std::string pause_menu_item_name = pause_menu.currentItem();
-                                if(pause_menu_item_name == "Continue") game_state = RUNNING;
-                                else if(pause_menu_item_name == "Save Game") game_state = SAVE;
-                                else game_state = MAIN;
+                                if(pause_menu_item_name == "Continue")
+                                    game_state = RUNNING;
+                                else if(pause_menu_item_name == "Save Game")
+                                    game_state = SAVE;
+                                else
+                                    game_state = MAIN;
+                                break;
                             }
-                            else if(key == ESC) game_state = RUNNING;
-                            break;
+                            case ESC:
+                            {
+                                game_state = RUNNING;
+                                break;
+                            }
                         }
-
-                        case SAVE:
+                        break;
+                    }
+                    case SAVE:
+                    {
+                        switch(key)
                         {
-                            if(key == UP) save_menu.moveUp();
-                            else if(key == DOWN) save_menu.moveDown();
-                            else if(key == ENTER)
+                            case UP:
+                            {
+                                save_menu.moveUp();
+                                break;
+                            }
+                            case DOWN:
+                            {
+                                save_menu.moveDown();
+                                break;
+                            }
+                            case ENTER:
                             {
                                 saveGame();
                                 game_state = RUNNING;
+                                break;
                             }
-                            else if(key == ESC) game_state = PAUSE;
-                            break;
+                            case ESC:
+                            {
+                                game_state = PAUSE;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                    case RUNNING:
+                    {
+                        switch(key)
+                        {
+                            case ESC:
+                            {
+                                game_state = PAUSE;
+                                break;
+                            }
+                            case ENTER:
+                            {
+                                //WIP
+                                break;
+                            }
+                            default:
+                            {
+                                //WIP
+                                break;
+                            }
                         }
                     }
-                }
-                else
-                {
-                    std::string command;
-                    std::cin>>command;
                 }
             }
         }
@@ -196,35 +290,31 @@ class Game
             //WIP
         }
 
-        void showCursor() const
-        {
-            std::cout << "\x1b[?25h";
-        }
-
-        void hideCursor() const
-        {
-            std::cout << "\x1b[?25l";
-        }
-
         void renderFrame()
         {
             clearFrame();
             switch(game_state)
             {
                 case MAIN:
+                {
                     main_menu.renderMenu(frame_buffer);
                     break;
+                }
                 case PAUSE:
+                {
                     pause_menu.renderMenu(frame_buffer);
                     break;
+                }
                 case SAVE:
+                {
                     save_menu.renderMenu(frame_buffer);
                     break;
+                }
                 case RUNNING:
+                {
                     //WIP
                     break;
-                case QUIT:
-                    break;
+                }
             }
             std::cout << "\x1b[H";
             for(const std::string& row: frame_buffer)
@@ -238,7 +328,7 @@ class Game
                 auto frameStart = std::chrono::high_resolution_clock::now();
 
                 handleInput();
-                hideCursor();
+                input.hideCursor();
                 if(game_state == RUNNING) updateState();
                 renderFrame();
 
