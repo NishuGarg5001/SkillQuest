@@ -5,8 +5,8 @@
 #include <chrono>
 #include <thread>
 
-constexpr int SCREEN_WIDTH  = 60;
-constexpr int SCREEN_HEIGHT = 20;
+constexpr size_t SCREEN_WIDTH  = 60;
+constexpr size_t SCREEN_HEIGHT = 20;
 
 enum InputKey
 {
@@ -51,16 +51,6 @@ class Menu
     public:
         Menu(std::vector<std::string> items) : items(std::move(items)), index(0){}
 
-        void setIndex(int index)
-        {
-            this->index = index;
-        }
-
-        int getIndex() const
-        {
-            return index;
-        }
-
         int getSize() const
         {
             return static_cast<int>(items.size());
@@ -93,34 +83,11 @@ class Menu
         }
 };
 
-class Input
-{
-    std::string command;
-
-    public:
-        Input() : command(""){}
-
-        void showCursor() const
-        {
-            std::cout << "\x1b[?25h";
-        }
-
-        void hideCursor() const
-        {
-            std::cout << "\x1b[?25l";
-        }
-
-        void echo(const char x)
-        {
-            //WIP
-        }
-};
-
 class Game
 {
     int fps;
-    std::vector<std::string> frame_buffer;
-    Input input;
+    std::vector<std::string> frame_buffer, history;
+    std::string command;
     GameState game_state;
     Player player;
     Menu main_menu, pause_menu, save_menu;
@@ -129,7 +96,8 @@ class Game
         Game():
         fps(60),
         frame_buffer(std::vector<std::string>(SCREEN_HEIGHT, std::string(SCREEN_WIDTH, ' '))),
-        input(Input()),
+        history(),
+        command(""),
         game_state(MAIN),
         main_menu(Menu({"New Game", "Load Game", "Quit"})),
         pause_menu(Menu({"Continue", "Save Game", "Quit to Main Menu"})),
@@ -179,7 +147,9 @@ class Game
                                 if(main_menu_item_name == "New Game" || main_menu_item_name == "Load Game")
                                 {
                                     game_state = RUNNING;
-                                    if (main_menu_item_name == "Load Game")
+                                    if (main_menu_item_name == "New Game")
+                                        newGame();
+                                    else
                                         loadGame();
                                 }
                                 else
@@ -261,18 +231,25 @@ class Game
                             }
                             case ENTER:
                             {
-                                //WIP
+                                updateHistory();
                                 break;
                             }
                             default:
                             {
-                                //WIP
+                                updateCommand(static_cast<char>(key));
                                 break;
                             }
                         }
                     }
                 }
             }
+        }
+
+        void newGame()
+        {
+            player = Player();
+            clearFrame();
+            history.clear();
         }
 
         void saveGame() const
@@ -290,9 +267,61 @@ class Game
             //WIP
         }
 
+        void hideCursor() const
+        {
+            std::cout<<"\x1b[?25l";
+        }
+
+        void showCursor() const
+        {
+            std::cout<<"\x1b[?25h";
+        }
+
+        void clearCommand()
+        {
+            command = "";
+        }
+
+        void updateCommand(char x)
+        {
+            if(x != '\b')
+            {
+                if(isprint(x) && command.size() < SCREEN_WIDTH - 1)
+                    command.push_back(x);
+            }
+            else if(command.size() > 0)
+                command.pop_back();
+        }
+
+        void echo()
+        {
+            size_t hsize = history.size();
+            if(hsize < SCREEN_HEIGHT)
+            {
+                for(size_t i=0; i<hsize; i++)
+                    frame_buffer[i] = history[i] + std::string(SCREEN_WIDTH - history[i].size(), ' ');
+                frame_buffer[hsize] = command + std::string(SCREEN_WIDTH - command.size(), ' ');
+            }
+            else
+            {
+                size_t start = hsize - (SCREEN_HEIGHT - 1);
+                for(size_t i=0; i<SCREEN_HEIGHT - 1; i++)
+                    frame_buffer[i] = history[start + i] + std::string(SCREEN_WIDTH - history[start + i].size(), ' ');
+                frame_buffer[SCREEN_HEIGHT - 1] = command + std::string(SCREEN_WIDTH - command.size(), ' ');
+            }
+        }
+
+        void updateHistory()
+        {
+            history.push_back(command);
+            clearCommand();
+        }
+
         void renderFrame()
         {
-            clearFrame();
+            hideCursor();
+            if(game_state != RUNNING)
+                clearFrame();
             switch(game_state)
             {
                 case MAIN:
@@ -312,13 +341,16 @@ class Game
                 }
                 case RUNNING:
                 {
-                    //WIP
+                    echo();
                     break;
                 }
             }
-            std::cout << "\x1b[H";
+            std::cout<<"\x1b[H";
             for(const std::string& row: frame_buffer)
                 std::cout<<row<<"\n";
+            std::cout<<"\x1b["<<std::min(history.size(), SCREEN_HEIGHT - 1) + 1<<";"<<command.size() + 1<<"H";
+            if(game_state == RUNNING)
+                showCursor();
         }
 
         void runGame()
@@ -328,7 +360,6 @@ class Game
                 auto frameStart = std::chrono::high_resolution_clock::now();
 
                 handleInput();
-                input.hideCursor();
                 if(game_state == RUNNING) updateState();
                 renderFrame();
 
