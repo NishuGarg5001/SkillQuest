@@ -1,3 +1,8 @@
+#V 0.0.24
+-Optimised enums and player skills to consume less memory
+-Fixed some bugs regarding clearing frame
+-Made the Menu class water tight by clearly stating and working out the invariant conditions
+
 #V 0.0.2
 -Removed Input class as not useful
 -Screen width/height changed to size_t

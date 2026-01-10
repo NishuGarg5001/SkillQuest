@@ -4,6 +4,7 @@
 #include <conio.h>
 #include <chrono>
 #include <thread>
+#include <cstdint>
 
 constexpr size_t SCREEN_WIDTH  = 60;
 constexpr size_t SCREEN_HEIGHT = 20;
@@ -18,7 +19,7 @@ enum InputKey
     ESC = 27
 };
 
-enum GameState
+enum GameState : std::uint8_t
 {
     QUIT,
     RUNNING,
@@ -27,7 +28,7 @@ enum GameState
     SAVE
 };
 
-enum PlayerState
+enum PlayerState : std::uint8_t
 {
     NONE,
     MINING
@@ -35,47 +36,63 @@ enum PlayerState
 
 class Player 
 {
-    int health;
-    int mining;
+    std::uint8_t health;
+    std::uint8_t mining;
     PlayerState player_state;
 
     public:
-        Player() : health(10), mining(1), player_state(NONE){}
+        explicit Player() : health(10), mining(1), player_state(NONE){}
 };
 
 class Menu
 {
+    //invariants
+    //index < items.size()
+    //0 < items.size <= SCREEN_HEIGHT
+    //items[i].size() <= SCREEN_WIDTH - 4 for all 0<=i<items.size()
+    //implies SCREEN_WIDTH > 3
     std::vector<std::string> items;
-    int index;
+    size_t index;
 
     public:
-        Menu(std::vector<std::string> items) : items(std::move(items)), index(0){}
-
-        int getSize() const
+        explicit Menu(std::vector<std::string> items) : items(std::move(items)), index(0)
         {
-            return static_cast<int>(items.size());
+            if(this->items.empty())
+                throw std::invalid_argument("Menu cannot be empty");
+            if(this->items.size() > SCREEN_HEIGHT)
+                throw std::invalid_argument("Menu cannot be bigger than screen height");
+            if(SCREEN_WIDTH < 4)
+                throw std::invalid_argument("Screen width too small to render menu");
+            for(size_t i=0; i<this->items.size(); i++)
+                if(this->items[i].size() > SCREEN_WIDTH - 4)
+                    throw std::invalid_argument("Menu item cannot be bigger than screen width");
         }
 
-        const std::string& currentItem() const
+        size_t getSize() const noexcept
+        {
+            return items.size();
+        }
+
+        const std::string& currentItem() const noexcept
         {
             return items[index];
         }
 
-        void moveUp()
+        void moveUp() noexcept
         {
             if(index > 0)
                 index--;
         }
 
-        void moveDown()
+        void moveDown() noexcept
         {
-            if(index < getSize() - 1)
+            if(index < items.size() - 1)
                 index++;
         }
 
-        void renderMenu(std::vector<std::string>& frame_buffer) const
+        void renderMenu(std::vector<std::string>& frame_buffer) const noexcept
         {
-            for(int i=0; i<static_cast<int>(items.size()); i++)
+            for(size_t i=0; i<items.size(); i++)
             {
                 std::string x = (i==index?"":"    ")+items[i];
                 frame_buffer[i] = x + std::string(SCREEN_WIDTH - x.size(), ' ');
@@ -93,7 +110,7 @@ class Game
     Menu main_menu, pause_menu, save_menu;
 
     public:
-        Game():
+        explicit Game():
         fps(60),
         frame_buffer(std::vector<std::string>(SCREEN_HEIGHT, std::string(SCREEN_WIDTH, ' '))),
         history(),
@@ -248,7 +265,6 @@ class Game
         void newGame()
         {
             player = Player();
-            clearFrame();
             history.clear();
         }
 
@@ -259,7 +275,7 @@ class Game
 
         void loadGame()
         {
-            //WIP
+            history.clear();
         }
 
         void updateState()
@@ -320,8 +336,7 @@ class Game
         void renderFrame()
         {
             hideCursor();
-            if(game_state != RUNNING)
-                clearFrame();
+            clearFrame();
             switch(game_state)
             {
                 case MAIN:
