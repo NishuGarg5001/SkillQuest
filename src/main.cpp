@@ -6,8 +6,8 @@
 #include <thread>
 #include <cstdint>
 
-constexpr size_t SCREEN_WIDTH  = 60;
-constexpr size_t SCREEN_HEIGHT = 20;
+constexpr size_t SCREEN_WIDTH  = 120;
+constexpr size_t SCREEN_HEIGHT = 27;
 
 enum InputKey
 {
@@ -48,24 +48,39 @@ class Menu
 {
     //invariants
     //index < items.size()
-    //0 < items.size <= SCREEN_HEIGHT
-    //items[i].size() <= SCREEN_WIDTH - 4 for all 0<=i<items.size()
-    //implies SCREEN_WIDTH > 3
+    //0 < menu_box_width <= SCREEN_WIDTH
+    //0 < menu_box_height <= SCREEN_HEIGHT
+    //0 < items.size <= menu_box_height - 2
+    //implies menu_box_height > 2
+    //items[i].size() <= menu_box_width - 4 for all 0<=i<items.size()
+    //implies menu_box_width > 4
     std::vector<std::string> items;
-    size_t index;
+    size_t index, menu_box_width, menu_box_height;
 
     public:
-        explicit Menu(std::vector<std::string> items) : items(std::move(items)), index(0)
+        explicit Menu(std::vector<std::string> items, size_t menu_box_width, size_t menu_box_height) : 
+        items(std::move(items)),
+        index(0),
+        menu_box_width(menu_box_width),
+        menu_box_height(menu_box_height)
         {
             if(this->items.empty())
                 throw std::invalid_argument("Menu cannot be empty");
-            if(this->items.size() > SCREEN_HEIGHT)
-                throw std::invalid_argument("Menu cannot be bigger than screen height");
-            if(SCREEN_WIDTH < 4)
-                throw std::invalid_argument("Screen width too small to render menu");
+            if(this->menu_box_width == 0)
+                throw std::invalid_argument("Menu box width cannot be 0");
+            if(this->menu_box_width > SCREEN_WIDTH)
+                throw std::invalid_argument("Menu box width cannot be more than screen width");
+            if(menu_box_height == 0)
+                throw std::invalid_argument("Menu box height cannot be 0");
+            if(this->menu_box_height > SCREEN_HEIGHT)
+                throw std::invalid_argument("Menu box height cannot be more than screen height");
+            if(this->menu_box_width < 5)
+                throw std::invalid_argument("Menu box width too small to render any menu item");
             for(size_t i=0; i<this->items.size(); i++)
-                if(this->items[i].size() > SCREEN_WIDTH - 4)
-                    throw std::invalid_argument("Menu item cannot be bigger than screen width");
+                if(this->items[i].size() > menu_box_width - 4)
+                    throw std::invalid_argument("Menu item cannot be bigger than menu box width");
+            if(this->menu_box_height < 3)
+                throw std::invalid_argument("Menu box height too small to render any menu");
         }
 
         size_t getSize() const noexcept
@@ -90,19 +105,43 @@ class Menu
                 index++;
         }
 
-        void renderMenu(std::vector<std::string>& frame_buffer) const noexcept
+        void renderMenu(std::vector<std::string>& frame_buffer) const
         {
-            for(size_t i=0; i<items.size(); i++)
+            const size_t x_pad = (SCREEN_WIDTH  - menu_box_width)  / 2;
+            const size_t y_pad = (SCREEN_HEIGHT - menu_box_height) / 2;
+
+            for (size_t row = 0; row < menu_box_height; row++)
             {
-                std::string x = (i==index?"":"    ")+items[i];
-                frame_buffer[i] = x + std::string(SCREEN_WIDTH - x.size(), ' ');
+                size_t i = y_pad + row;
+                if (row == 0 || row == menu_box_height - 1)
+                {
+                    frame_buffer[i] =
+                    std::string(x_pad, ' ') +
+                    std::string(menu_box_width, '-') +
+                    std::string(SCREEN_WIDTH - x_pad - menu_box_width, ' ');
+                }
+                else
+                {
+                    const size_t item_idx = row - 1;
+                    std::string q = (index == item_idx ? "->" : "") + items[item_idx];
+                    size_t content_width = menu_box_width - 2;
+                    frame_buffer[i] =
+                    std::string(x_pad, ' ') +
+                    "|" + q +
+                    std::string(content_width - q.size(), ' ') +
+                    "|" +
+                    std::string(SCREEN_WIDTH - x_pad - menu_box_width, ' ');
+                }
             }
         }
 };
 
 class Game
 {
-    int fps;
+    //invariants
+    //0 < fps < 61
+
+    uint8_t fps;
     std::vector<std::string> frame_buffer, history;
     std::string command;
     GameState game_state;
@@ -116,20 +155,22 @@ class Game
         history(),
         command(""),
         game_state(MAIN),
-        main_menu(Menu({"New Game", "Load Game", "Quit"})),
-        pause_menu(Menu({"Continue", "Save Game", "Quit to Main Menu"})),
-        save_menu(Menu({"Slot 1", "Slot 2", "Slot 3"})),
+        main_menu(Menu({"New Game", "Load Game", "Quit"}, 13, 5)),
+        pause_menu(Menu({"Continue", "Save Game", "Quit to Main Menu"}, 21, 5)),
+        save_menu(Menu({"Slot 1", "Slot 2", "Slot 3"}, 10, 5)),
         player(Player()){}
 
-        void setFPS(int fps)
+        void setFPS(uint8_t fps) noexcept
         {
-            if(0 < fps < 61)
-                this->fps = fps;
-            else
+            if(fps == 0)
+                this->fps = 1;
+            else if(fps > 60)
                 this->fps = 60;
+            else
+                this->fps = fps;
         }
 
-        void clearFrame()
+        void clearFrame() noexcept
         {
             for (std::string& row: frame_buffer)
                 row.assign(SCREEN_WIDTH, ' ');
@@ -262,7 +303,7 @@ class Game
             }
         }
 
-        void newGame()
+        void newGame() noexcept
         {
             player = Player();
             history.clear();
@@ -283,17 +324,17 @@ class Game
             //WIP
         }
 
-        void hideCursor() const
+        void hideCursor() const noexcept
         {
             std::cout<<"\x1b[?25l";
         }
 
-        void showCursor() const
+        void showCursor() const noexcept
         {
             std::cout<<"\x1b[?25h";
         }
 
-        void clearCommand()
+        void clearCommand() noexcept
         {
             command = "";
         }
@@ -316,15 +357,14 @@ class Game
             {
                 for(size_t i=0; i<hsize; i++)
                     frame_buffer[i] = history[i] + std::string(SCREEN_WIDTH - history[i].size(), ' ');
-                frame_buffer[hsize] = command + std::string(SCREEN_WIDTH - command.size(), ' ');
             }
             else
             {
                 size_t start = hsize - (SCREEN_HEIGHT - 1);
                 for(size_t i=0; i<SCREEN_HEIGHT - 1; i++)
                     frame_buffer[i] = history[start + i] + std::string(SCREEN_WIDTH - history[start + i].size(), ' ');
-                frame_buffer[SCREEN_HEIGHT - 1] = command + std::string(SCREEN_WIDTH - command.size(), ' ');
             }
+            frame_buffer[SCREEN_HEIGHT - 1] = command + std::string(SCREEN_WIDTH - command.size(), ' ');
         }
 
         void updateHistory()
@@ -363,7 +403,7 @@ class Game
             std::cout<<"\x1b[H";
             for(const std::string& row: frame_buffer)
                 std::cout<<row<<"\n";
-            std::cout<<"\x1b["<<std::min(history.size(), SCREEN_HEIGHT - 1) + 1<<";"<<command.size() + 1<<"H";
+            std::cout<<"\x1b["<<SCREEN_HEIGHT<<";"<<command.size() + 1<<"H";
             if(game_state == RUNNING)
                 showCursor();
         }

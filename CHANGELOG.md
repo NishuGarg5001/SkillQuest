@@ -1,3 +1,7 @@
+#V 0.0.27
+-Centered menus and boxed them
+-Command echoing shifted to last row of screen (not necessarily last row of terminal)
+
 #V 0.0.24
 -Optimised enums and player skills to consume less memory
 -Fixed some bugs regarding clearing frame
