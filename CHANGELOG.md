@@ -1,3 +1,16 @@
+#V 0.0.35
+-Added functionality to validate user input
+-Added inventory
+-Added basic support for mining skill
+-Added multiple enum categories
+-Added Location, Objects and Resources
+-Cleared up some strings with string_views
+-Added tick size to decouple game state from frame rate
+-Added unordered maps to map user input to enums
+-Added basic verbose for mining / inventory full
+-Added player location and target pointers
+-Added various methods to player and game to handle new changes
+
 #V 0.0.27
 -Centered menus and boxed them
 -Command echoing shifted to last row of screen (not necessarily last row of terminal)

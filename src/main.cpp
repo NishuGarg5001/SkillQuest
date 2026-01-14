@@ -5,9 +5,14 @@
 #include <chrono>
 #include <thread>
 #include <cstdint>
+#include <optional>
+#include <string_view>
+#include <unordered_map>
 
 constexpr size_t SCREEN_WIDTH  = 120;
 constexpr size_t SCREEN_HEIGHT = 27;
+constexpr auto tick = std::chrono::milliseconds(600);
+using high_clock = std::chrono::high_resolution_clock;
 
 enum InputKey
 {
@@ -31,56 +36,211 @@ enum GameState : std::uint8_t
 enum PlayerState : std::uint8_t
 {
     NONE,
+    MINING_STATE
+};
+
+enum ActionVerb : std::uint8_t
+{
+    NO_ACTION,
+    MINE
+};
+
+enum Resources : std::uint8_t
+{
+    NO_RESOURCE,
+    COPPER,
+    TIN,
+    IRON,
+    GOLD
+};
+
+enum Objects : std::uint8_t
+{
+    NO_ITEM,
+    COPPER_ORE,
+    TIN_ORE,
+    IRON_ORE,
+    GOLD_ORE
+};
+
+enum Skills : std::uint8_t
+{
+    HEALTH,
     MINING
+};
+
+const std::unordered_map<std::string_view, ActionVerb> action_map = {
+    {"mine", MINE}
+};
+
+const std::unordered_map<std::string_view, Resources> ores_map = {
+    {"copper", COPPER},
+    {"tin", TIN},
+    {"iron", IRON},
+    {"gold", GOLD}
+};
+
+const std::unordered_map<Objects, std::string_view> objects_map_inverse = {
+    {COPPER_ORE, "copper ore"},
+    {TIN_ORE, "tin ore"},
+    {IRON_ORE, "iron ore"},
+    {GOLD_ORE, "gold ore"}
+};
+
+struct Resource
+{
+    Resources name;
+    Skills skill;
+    Objects object_name;
+    const uint8_t level;
+    const uint32_t exp;
+    
+    explicit Resource(Resources name, Skills skill, Objects object_name, uint8_t level, uint32_t exp) noexcept :
+    name(name),
+    skill(skill),
+    object_name(object_name),
+    level(level),
+    exp(exp){}
+};
+
+struct Object
+{
+    Objects name;
+
+    explicit Object(Objects name) noexcept : name(name){}
+};
+
+class Location
+{
+    std::string name;
+    const std::vector<Resource> resources;
+
+    public:
+        explicit Location(std::string name, std::vector<Resource> resources) : name(name), resources(resources){}
+
+        const std::vector<Resource>& getResources() const noexcept
+        {
+            return resources;
+        }
 };
 
 class Player 
 {
     std::uint8_t health;
     std::uint8_t mining;
+    std::vector<std::optional<Object>> inventory;
     PlayerState player_state;
+    const Location* player_location;
+    const Resource* resource_target;
 
     public:
-        explicit Player() : health(10), mining(1), player_state(NONE){}
+        Player() noexcept: health(10), mining(1), inventory(), player_state(NONE), player_location(nullptr), resource_target(nullptr)
+        {
+            inventory.resize(28);
+        }
+
+        void moveTo(const Location& location)
+        {
+            player_location = &location;
+        }
+
+        const bool hasEnoughSkillLevel(Skills skill) const noexcept
+        {
+            switch(skill)
+            {
+                case MINING:
+                {
+                    if(mining >= resource_target->level)
+                        return true;
+                    break;
+                }
+            }
+            return false;
+        }
+
+        const bool locationHasResource(Resources item) const
+        {
+            for(const Resource& resource : player_location->getResources())
+                if(item == resource.name)
+                    return true;
+            return false;
+        }
+
+        void setResourceTarget(Resources item)
+        {
+            for(const Resource& resource : player_location->getResources())
+                if(item == resource.name)
+                    {
+                        resource_target = &resource;
+                        break;
+                    }
+        }
+
+        PlayerState getAction() const noexcept
+        {
+            return player_state;
+        }
+
+        void startAction(PlayerState action) noexcept
+        {
+            player_state = action;
+        }
+
+        const bool addItem(Object item) //Cannot be Object& because resource needs to return object.name
+        //and after move, item will be eaten up by slot and if item is a reference to object, object will not be able
+        //to return object.name as it will become empty
+        {
+            for(auto& slot : inventory)
+                if(!slot.has_value())
+                {
+                    slot.emplace(std::move(item));
+                    return true;
+                }
+            return false;
+        }
+
+        Objects extractResource()
+        {
+            Object object(resource_target->object_name);
+            if(addItem(object))
+                return object.name;
+            return NO_ITEM;
+        }
 };
 
 class Menu
 {
     //invariants
-    //index < items.size()
+    //index < items.size() --> this condition has to be maintained internally after constructor call
+    //0 < items.size() <= SCREEN_HEIGHT
     //0 < menu_box_width <= SCREEN_WIDTH
-    //0 < menu_box_height <= SCREEN_HEIGHT
-    //0 < items.size <= menu_box_height - 2
-    //implies menu_box_height > 2
+    //menu_box_height = items.size() + 2
     //items[i].size() <= menu_box_width - 4 for all 0<=i<items.size()
     //implies menu_box_width > 4
-    std::vector<std::string> items;
-    size_t index, menu_box_width, menu_box_height;
+    const std::vector<std::string> items;
+    size_t index;
+    const size_t menu_box_width, menu_box_height;
 
     public:
-        explicit Menu(std::vector<std::string> items, size_t menu_box_width, size_t menu_box_height) : 
+        explicit Menu(std::vector<std::string> items, size_t menu_box_width) : 
         items(std::move(items)),
         index(0),
         menu_box_width(menu_box_width),
-        menu_box_height(menu_box_height)
+        menu_box_height(this->items.size() + 2)
         {
             if(this->items.empty())
                 throw std::invalid_argument("Menu cannot be empty");
+            if(this->items.size() > SCREEN_HEIGHT)
+                throw std::invalid_argument("Menu box height cannot be more than screen height");
             if(this->menu_box_width == 0)
                 throw std::invalid_argument("Menu box width cannot be 0");
             if(this->menu_box_width > SCREEN_WIDTH)
                 throw std::invalid_argument("Menu box width cannot be more than screen width");
-            if(menu_box_height == 0)
-                throw std::invalid_argument("Menu box height cannot be 0");
-            if(this->menu_box_height > SCREEN_HEIGHT)
-                throw std::invalid_argument("Menu box height cannot be more than screen height");
             if(this->menu_box_width < 5)
                 throw std::invalid_argument("Menu box width too small to render any menu item");
             for(size_t i=0; i<this->items.size(); i++)
                 if(this->items[i].size() > menu_box_width - 4)
-                    throw std::invalid_argument("Menu item cannot be bigger than menu box width");
-            if(this->menu_box_height < 3)
-                throw std::invalid_argument("Menu box height too small to render any menu");
+                    throw std::invalid_argument("This menu item is bigger than menu box width");
         }
 
         size_t getSize() const noexcept
@@ -88,7 +248,7 @@ class Menu
             return items.size();
         }
 
-        const std::string& currentItem() const noexcept
+        std::string_view currentItem() const noexcept
         {
             return items[index];
         }
@@ -145,6 +305,7 @@ class Game
     std::vector<std::string> frame_buffer, history;
     std::string command;
     GameState game_state;
+    std::vector<Location> locations;
     Player player;
     Menu main_menu, pause_menu, save_menu;
 
@@ -155,9 +316,15 @@ class Game
         history(),
         command(""),
         game_state(MAIN),
-        main_menu(Menu({"New Game", "Load Game", "Quit"}, 13, 5)),
-        pause_menu(Menu({"Continue", "Save Game", "Quit to Main Menu"}, 21, 5)),
-        save_menu(Menu({"Slot 1", "Slot 2", "Slot 3"}, 10, 5)),
+        locations(
+            {
+                Location("Dirtmound", {Resource(COPPER, MINING, COPPER_ORE, 1, 4), Resource(TIN, MINING, TIN_ORE, 1, 4)}),
+                Location("Goldtown", {Resource(IRON, MINING, IRON_ORE, 10, 15), Resource(GOLD, MINING, GOLD_ORE, 20, 40)})
+            }
+        ),
+        main_menu(Menu({"New Game", "Load Game", "Quit"}, 13)),
+        pause_menu(Menu({"Continue", "Save Game", "Quit to Main Menu"}, 21)),
+        save_menu(Menu({"Slot 1", "Slot 2", "Slot 3"}, 10)),
         player(Player()){}
 
         void setFPS(uint8_t fps) noexcept
@@ -201,7 +368,7 @@ class Game
                             }
                             case ENTER:
                             {
-                                std::string main_menu_item_name = main_menu.currentItem();
+                                std::string_view main_menu_item_name = main_menu.currentItem();
                                 if(main_menu_item_name == "New Game" || main_menu_item_name == "Load Game")
                                 {
                                     game_state = RUNNING;
@@ -233,7 +400,7 @@ class Game
                             }
                             case ENTER:
                             {
-                                std::string pause_menu_item_name = pause_menu.currentItem();
+                                std::string_view pause_menu_item_name = pause_menu.currentItem();
                                 if(pause_menu_item_name == "Continue")
                                     game_state = RUNNING;
                                 else if(pause_menu_item_name == "Save Game")
@@ -289,12 +456,17 @@ class Game
                             }
                             case ENTER:
                             {
-                                updateHistory();
+                                auto parsed_command = parseCommand();
+                                if(parsed_command.second != NO_RESOURCE)
+                                    handleCommand(parsed_command);
+                                    history.push_back(command);
+                                clearCommand();
                                 break;
                             }
                             default:
                             {
-                                updateCommand(static_cast<char>(key));
+                                if ((key >= 32 && key <= 126) || key == 8)
+                                    updateCommand(static_cast<char>(key));
                                 break;
                             }
                         }
@@ -306,6 +478,7 @@ class Game
         void newGame() noexcept
         {
             player = Player();
+            player.moveTo(locations[0]);
             history.clear();
         }
 
@@ -321,7 +494,23 @@ class Game
 
         void updateState()
         {
-            //WIP
+            switch(player.getAction())
+            {
+                case MINING_STATE:
+                {
+                    Objects object_name = player.extractResource();
+                    if(object_name == NO_ITEM)
+                    {
+                        history.push_back("Your inventory is full!");
+                        player.startAction(NONE);
+                        return;
+                    }
+                    history.push_back(std::string("You mined a ").append(objects_map_inverse.find(object_name)->second).append("."));
+                    break;
+                }
+                case NONE:
+                    break;
+            }
         }
 
         void hideCursor() const noexcept
@@ -350,6 +539,52 @@ class Game
                 command.pop_back();
         }
 
+        std::pair<ActionVerb, Resources> parseCommand() const noexcept
+        {
+            size_t pos = command.find(' ');
+            if(pos == std::string::npos)
+                return {NO_ACTION, NO_RESOURCE};
+            std::string_view verb(command.data(), pos);
+            std::string_view obj(command.data() + pos + 1);
+            auto it = action_map.find(verb);
+            if(it == action_map.end())
+                return {NO_ACTION, NO_RESOURCE};
+            switch(it->second)
+            {
+                case MINE:
+                {
+                    auto it2 = ores_map.find(obj);
+                    if(it2 != ores_map.end())
+                        return {it->second, it2->second};
+                    return {it->second, NO_RESOURCE};
+                    break;
+                }
+            }
+        }
+
+        void handleCommand(const std::pair<ActionVerb, Resources>& parsed_command) noexcept
+        {
+            if(!player.locationHasResource(parsed_command.second))
+            {
+                command = "Location does not have the resource!";
+                return;
+            }
+            player.setResourceTarget(parsed_command.second);
+            switch(parsed_command.first)
+            {
+                case MINE:
+                {
+                    if(!player.hasEnoughSkillLevel(MINING))
+                    {
+                        command = "You do not have enough mining level!";
+                        return;
+                    }
+                    player.startAction(MINING_STATE);
+                    break;
+                }
+            }
+        }
+
         void echo()
         {
             size_t hsize = history.size();
@@ -365,12 +600,6 @@ class Game
                     frame_buffer[i] = history[start + i] + std::string(SCREEN_WIDTH - history[start + i].size(), ' ');
             }
             frame_buffer[SCREEN_HEIGHT - 1] = command + std::string(SCREEN_WIDTH - command.size(), ' ');
-        }
-
-        void updateHistory()
-        {
-            history.push_back(command);
-            clearCommand();
         }
 
         void renderFrame()
@@ -401,8 +630,8 @@ class Game
                 }
             }
             std::cout<<"\x1b[H";
-            for(const std::string& row: frame_buffer)
-                std::cout<<row<<"\n";
+            for(std::string_view row: frame_buffer)
+                std::cout<<row<<'\n';
             std::cout<<"\x1b["<<SCREEN_HEIGHT<<";"<<command.size() + 1<<"H";
             if(game_state == RUNNING)
                 showCursor();
@@ -410,16 +639,25 @@ class Game
 
         void runGame()
         {
+            auto prev = high_clock::now();
+            auto accumulator = std::chrono::milliseconds(0);
             while(game_state != QUIT)
             {
-                auto frameStart = std::chrono::high_resolution_clock::now();
+                auto frameStart = high_clock::now();
+                accumulator += std::chrono::duration_cast<std::chrono::milliseconds>(frameStart - prev);
+                prev = frameStart;
 
                 handleInput();
-                if(game_state == RUNNING) updateState();
+                while(accumulator >= tick)
+                {
+                    if(game_state == RUNNING) 
+                        updateState();
+                    accumulator -= tick;
+                }
                 renderFrame();
 
-                std::chrono::milliseconds frameDuration(1000 / fps);
-                auto frameEnd = std::chrono::high_resolution_clock::now();
+                auto frameDuration = std::chrono::milliseconds(1000 / fps);
+                auto frameEnd = high_clock::now();
                 auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameStart);
                 if(elapsed < frameDuration) std::this_thread::sleep_for(frameDuration - elapsed);
             }
