@@ -1,3 +1,6 @@
+#V 0.0.36
+-File split into main and multiple header files
+
 #V 0.0.35
 -Added functionality to validate user input
 -Added inventory
