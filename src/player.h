@@ -7,16 +7,14 @@ class Player
 {
     std::uint8_t health;
     std::uint8_t mining;
-    std::vector<std::optional<Object>> inventory;
+    std::array<std::optional<Object>, INVENTORY_SIZE> inventory;
     PlayerState player_state;
     const Location* player_location;
     const Resource* resource_target;
 
     public:
         Player() noexcept: health(10), mining(1), inventory(), player_state(NONE), player_location(nullptr), resource_target(nullptr)
-        {
-            inventory.resize(28);
-        }
+        {}
 
         void moveTo(const Location& location)
         {

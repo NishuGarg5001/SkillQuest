@@ -7,9 +7,14 @@
 #include <optional>
 #include <conio.h>
 #include <thread>
+#include <deque>
+#include <array>
+#include <vector>
+#include <string>
 
-constexpr size_t SCREEN_WIDTH  = 120;
-constexpr size_t SCREEN_HEIGHT = 27;
+constexpr uint8_t SCREEN_WIDTH  = 120;
+constexpr uint8_t SCREEN_HEIGHT = 27;
+constexpr uint8_t INVENTORY_SIZE = 28;
 constexpr auto tick = std::chrono::milliseconds(600);
 using high_clock = std::chrono::high_resolution_clock;
 

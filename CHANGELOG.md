@@ -1,3 +1,9 @@
+#V 0.0.365
+-Optimised history from a vector to fixed sized deque (tied to SCREEN_HEIGHT - 1) by popping from front and pushing from back
+-Optimised frame_buffer to fixed size array (tied to SCREEN_HEIGHT)
+-Memory optimizations, constants size reduced to uint8_t, removed an unused member function in Menu class
+-Added support for other Windows terminals
+
 #V 0.0.36
 -File split into main and multiple header files
 

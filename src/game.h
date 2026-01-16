@@ -8,9 +8,11 @@ class Game
 {
     //invariants
     //0 < fps < 61
+    //history.size() <= SCREEN_HEIGHT - 1
 
     uint8_t fps;
-    std::vector<std::string> frame_buffer, history;
+    std::array<std::string, SCREEN_HEIGHT> frame_buffer;
+    std::deque<std::string> history;
     std::string command;
     GameState game_state;
     std::vector<Location> locations;
@@ -20,7 +22,6 @@ class Game
     public:
         explicit Game():
         fps(60),
-        frame_buffer(std::vector<std::string>(SCREEN_HEIGHT, std::string(SCREEN_WIDTH, ' '))),
         history(),
         command(""),
         game_state(MAIN),
@@ -167,7 +168,7 @@ class Game
                                 auto parsed_command = parseCommand();
                                 if(parsed_command.second != NO_RESOURCE)
                                     handleCommand(parsed_command);
-                                    history.push_back(command);
+                                    pushHistory(command);
                                 clearCommand();
                                 break;
                             }
@@ -200,6 +201,13 @@ class Game
             history.clear();
         }
 
+        void pushHistory(std::string text)
+        {
+            if(history.size() == SCREEN_HEIGHT - 1)
+                history.pop_front();
+            history.push_back(std::move(text));
+        }
+
         void updateState()
         {
             switch(player.getAction())
@@ -209,11 +217,11 @@ class Game
                     Objects object_name = player.extractResource();
                     if(object_name == NO_ITEM)
                     {
-                        history.push_back("Your inventory is full!");
+                        pushHistory("Your inventory is full!");
                         player.startAction(NONE);
                         return;
                     }
-                    history.push_back(std::string("You mined a ").append(objects_map_inverse.find(object_name)->second).append("."));
+                    pushHistory(std::string("You mined a ").append(objects_map_inverse.find(object_name)->second).append("."));
                     break;
                 }
                 case NONE:
@@ -249,7 +257,7 @@ class Game
 
         std::pair<ActionVerb, Resources> parseCommand() const noexcept
         {
-            size_t pos = command.find(' ');
+            uint8_t pos = command.find(' ');
             if(pos == std::string::npos)
                 return {NO_ACTION, NO_RESOURCE};
             std::string_view verb(command.data(), pos);
@@ -268,6 +276,7 @@ class Game
                     break;
                 }
             }
+            return {NO_ACTION, NO_RESOURCE};
         }
 
         void handleCommand(const std::pair<ActionVerb, Resources>& parsed_command) noexcept
@@ -296,17 +305,8 @@ class Game
         void echo()
         {
             size_t hsize = history.size();
-            if(hsize < SCREEN_HEIGHT)
-            {
-                for(size_t i=0; i<hsize; i++)
+                for(size_t i = 0; i < hsize; i++)
                     frame_buffer[i] = history[i] + std::string(SCREEN_WIDTH - history[i].size(), ' ');
-            }
-            else
-            {
-                size_t start = hsize - (SCREEN_HEIGHT - 1);
-                for(size_t i=0; i<SCREEN_HEIGHT - 1; i++)
-                    frame_buffer[i] = history[start + i] + std::string(SCREEN_WIDTH - history[start + i].size(), ' ');
-            }
             frame_buffer[SCREEN_HEIGHT - 1] = command + std::string(SCREEN_WIDTH - command.size(), ' ');
         }
 
@@ -340,7 +340,7 @@ class Game
             std::cout<<"\x1b[H";
             for(std::string_view row: frame_buffer)
                 std::cout<<row<<'\n';
-            std::cout<<"\x1b["<<SCREEN_HEIGHT<<";"<<command.size() + 1<<"H";
+            std::cout<<"\x1b["<<static_cast<int>(SCREEN_HEIGHT)<<";"<<command.size() + 1<<"H";
             if(game_state == RUNNING)
                 showCursor();
         }
