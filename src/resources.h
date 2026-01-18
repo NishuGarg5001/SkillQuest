@@ -3,27 +3,24 @@
 
 #include "constants.h"
 
-struct Resource
-{
-    Resources name;
-    Skills skill;
-    Objects object_name;
-    const uint8_t level;
-    const uint32_t exp;
-    
-    explicit Resource(Resources name, Skills skill, Objects object_name, uint8_t level, uint32_t exp) noexcept :
-    name(name),
-    skill(skill),
-    object_name(object_name),
-    level(level),
-    exp(exp){}
-};
-
 struct Object
 {
     Objects name;
 
     explicit Object(Objects name) noexcept : name(name){}
+};
+
+struct Resource
+{
+    Resources name;
+    Object object;
+    int gen_rate; //gen rate = 40 means 1/40 gen rate per tick
+    
+    explicit Resource(Resources name, Objects object_name, int gen_rate) noexcept :
+    name(name),
+    object(Object(object_name)),
+    gen_rate(gen_rate)
+    {}
 };
 
 #endif

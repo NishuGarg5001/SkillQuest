@@ -3,6 +3,30 @@
 
 #include "menu.h"
 #include "player.h"
+#include "random.h"
+
+uint8_t visible_length(const std::string& s)
+{
+    uint8_t len = 0;
+    uint8_t virtual_size = static_cast<uint8_t>(s.size());
+    for (uint8_t i = 0; i < virtual_size;)
+    {
+        if (s[i] == '\x1b' && i + 1 < virtual_size && s[i + 1] == '[')
+        {
+            i += 2;
+            while (i < virtual_size && s[i] != 'm')
+                ++i;
+            if (i < virtual_size)
+                ++i; // skip 'm'
+        }
+        else
+        {
+            ++len;
+            ++i;
+        }
+    }
+    return len;
+}
 
 class Game
 {
@@ -10,31 +34,26 @@ class Game
     //0 < fps < 61
     //history.size() <= SCREEN_HEIGHT - 1
 
-    uint8_t fps;
+    uint8_t fps = 60;
     std::array<std::string, SCREEN_HEIGHT> frame_buffer;
     std::deque<std::string> history;
-    std::string command;
-    GameState game_state;
-    std::vector<Location> locations;
-    Player player;
-    Menu main_menu, pause_menu, save_menu;
+    std::string command = "";
+    GameState game_state = MAIN;
+    Player player = Player();
+    Menu main_menu = Menu({"New Game", "Load Game", "Quit"}, 13);
+    Menu pause_menu =  Menu({"Continue", "Save Game", "Quit to Main Menu"}, 21);
+    Menu save_menu = Menu({"Slot 1", "Slot 2", "Slot 3"}, 10);
+    const Resource* player_target = nullptr;
+    const std::array<Resource, 4> game_resources =
+    {
+        Resource(COPPER, COPPER_ORE, 10),
+        Resource(TIN, TIN_ORE, 10),
+        Resource(IRON, IRON_ORE, 40),
+        Resource(GOLD, GOLD_ORE, 40),
+    };
 
     public:
-        explicit Game():
-        fps(60),
-        history(),
-        command(""),
-        game_state(MAIN),
-        locations(
-            {
-                Location("Dirtmound", {Resource(COPPER, MINING, COPPER_ORE, 1, 4), Resource(TIN, MINING, TIN_ORE, 1, 4)}),
-                Location("Goldtown", {Resource(IRON, MINING, IRON_ORE, 10, 15), Resource(GOLD, MINING, GOLD_ORE, 20, 40)})
-            }
-        ),
-        main_menu(Menu({"New Game", "Load Game", "Quit"}, 13)),
-        pause_menu(Menu({"Continue", "Save Game", "Quit to Main Menu"}, 21)),
-        save_menu(Menu({"Slot 1", "Slot 2", "Slot 3"}, 10)),
-        player(Player()){}
+        Game() noexcept {}
 
         void setFPS(uint8_t fps) noexcept
         {
@@ -187,7 +206,6 @@ class Game
         void newGame() noexcept
         {
             player = Player();
-            player.moveTo(locations[0]);
             history.clear();
         }
 
@@ -203,29 +221,84 @@ class Game
 
         void pushHistory(std::string text)
         {
-            if(history.size() == SCREEN_HEIGHT - 1)
+            if(history.size() == HISTORY_LENGTH)
                 history.pop_front();
             history.push_back(std::move(text));
         }
 
+        bool setPlayerTarget(Resources item)
+        {
+            for (const Resource& resource : game_resources)
+            {
+                if(resource.name == item)
+                {
+                    player_target = &resource;
+                    return true;
+                }
+            }
+            player_target = nullptr;
+            return false;
+        }
+
+        Objects extractResource()
+        {
+            if(player_target == nullptr)
+                return NO_ITEM;
+            if(random_int(0, player_target->gen_rate - 1) == 0)
+                if(player.addItem(player_target->object))
+                    return player_target->object.name;
+            return NO_ITEM;
+        }
+
         void updateState()
         {
-            switch(player.getAction())
+            PlayerState action = player.getAction();
+            if(action == MINING_STATE) //If a skill-based action
             {
-                case MINING_STATE:
+                Skills skill = playerstate_to_skill.at(action);
+                uint32_t exp;
+                if(player_target)  //if player has a target resource, it is an extraction kind of skill task
                 {
-                    Objects object_name = player.extractResource();
+                    Objects object_name = extractResource();
                     if(object_name == NO_ITEM)
                     {
-                        pushHistory("Your inventory is full!");
-                        player.startAction(NONE);
+                        if(player.isInventoryFull())
+                        {
+                            pushHistory("Your inventory is full!");
+                            player_target = nullptr;
+                            player.startAction(NONE);
+                        }
                         return;
                     }
-                    pushHistory(std::string("You mined a ").append(objects_map_inverse.find(object_name)->second).append("."));
-                    break;
+                    switch(action)
+                    {
+                        case MINING_STATE:
+                            pushHistory(std::string("You mined a ") + BROWN + objects_map_inverse.at(object_name) + WHITE + ".");
+                            break;
+                    }
+                    exp = xp_table.at(skill).at(object_name).second;
                 }
-                case NONE:
-                    break;
+                //else {} block to be added her for non-extraction skill based tasks
+                /*
+                else
+                {
+                    exp =
+                }
+                */
+                player.gainExperience(skill, exp);
+                std::string skill_str = skill_to_verbose.at(skill);
+                pushHistory("You gained " + std::to_string(exp) + " " + skill_str + " experience.");
+                if(player.levelUp(skill))
+                    pushHistory("Congratulations! You have gained 1 " + skill_str + " level. Your " + skill_str + " level is now "
+                    + std::to_string(player.getLevel(skill)) + ".");
+            }
+            else
+            {
+                switch(player.getAction())
+                {
+                    case NONE:
+                        break;
+                }
             }
         }
 
@@ -248,7 +321,7 @@ class Game
         {
             if(x != '\b')
             {
-                if(isprint(x) && command.size() < SCREEN_WIDTH - 1)
+                if(isprint(x) && command.size() < COMMAND_SCREEN_WIDTH)
                     command.push_back(x);
             }
             else if(command.size() > 0)
@@ -281,33 +354,34 @@ class Game
 
         void handleCommand(const std::pair<ActionVerb, Resources>& parsed_command) noexcept
         {
-            if(!player.locationHasResource(parsed_command.second))
+            if(setPlayerTarget(parsed_command.second))
             {
-                command = "Location does not have the resource!";
-                return;
-            }
-            player.setResourceTarget(parsed_command.second);
-            switch(parsed_command.first)
-            {
-                case MINE:
+                Skills skill = action_to_skill.at(parsed_command.first);
+                if(!player.hasEnoughSkillLevel(skill, resource_min_level.at(player_target->name)))
                 {
-                    if(!player.hasEnoughSkillLevel(MINING))
-                    {
-                        command = "You do not have enough mining level!";
-                        return;
-                    }
-                    player.startAction(MINING_STATE);
-                    break;
+                    pushHistory("You do not have enough " + skill_to_verbose.at(skill) + " level!");
+                    return;
                 }
+                player.startAction(skill_to_playerstate.at(skill));
             }
         }
 
         void echo()
         {
-            size_t hsize = history.size();
-                for(size_t i = 0; i < hsize; i++)
-                    frame_buffer[i] = history[i] + std::string(SCREEN_WIDTH - history[i].size(), ' ');
-            frame_buffer[SCREEN_HEIGHT - 1] = command + std::string(SCREEN_WIDTH - command.size(), ' ');
+            uint8_t hsize = static_cast<uint8_t>(history.size());
+            if(hsize < HISTORY_LENGTH)
+            {
+                for(uint8_t i = 0; i < hsize; i++)
+                    frame_buffer[i] = history[i] + std::string(COMMAND_SCREEN_WIDTH - visible_length(history[i]), ' ') + "|";
+                for(uint8_t i = hsize; i < HISTORY_LENGTH; i++)
+                    frame_buffer[i] = std::string(COMMAND_SCREEN_WIDTH, ' ') + "|";
+            }
+            else
+                for(uint8_t i = 0; i < HISTORY_LENGTH; i++)
+                    frame_buffer[i] = history[i] + std::string(COMMAND_SCREEN_WIDTH - visible_length(history[i]), ' ') + "|";
+
+            frame_buffer[SCREEN_HEIGHT - 2] = std::string(COMMAND_SCREEN_WIDTH, '_') + "|";
+            frame_buffer[SCREEN_HEIGHT - 1] = command + std::string(COMMAND_SCREEN_WIDTH - command.size(), ' ') + "|";
         }
 
         void renderFrame()

@@ -1,56 +1,45 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#include "location.h"
+#include "resources.h"
 
 class Player 
 {
-    std::uint8_t health;
-    std::uint8_t mining;
+    std::unordered_map<Skills, std::pair<uint8_t, uint32_t>> player_skills = 
+    {
+        {HEALTH, {10, 0}},
+        {MINING, {1, 0}}
+    };
     std::array<std::optional<Object>, INVENTORY_SIZE> inventory;
-    PlayerState player_state;
-    const Location* player_location;
-    const Resource* resource_target;
+    PlayerState player_state = NONE;
+    uint8_t inventory_occupancy = 0;
 
     public:
-        Player() noexcept: health(10), mining(1), inventory(), player_state(NONE), player_location(nullptr), resource_target(nullptr)
-        {}
+        Player() noexcept {}
 
-        void moveTo(const Location& location)
+        const bool hasEnoughSkillLevel(Skills skill, uint8_t level) const noexcept
         {
-            player_location = &location;
-        }
-
-        const bool hasEnoughSkillLevel(Skills skill) const noexcept
-        {
-            switch(skill)
-            {
-                case MINING:
-                {
-                    if(mining >= resource_target->level)
-                        return true;
-                    break;
-                }
-            }
+            if(player_skills.at(skill).first >= level)
+                return true;
             return false;
         }
 
-        const bool locationHasResource(Resources item) const
+        void gainExperience(Skills skill, uint32_t exp) noexcept
         {
-            for(const Resource& resource : player_location->getResources())
-                if(item == resource.name)
-                    return true;
-            return false;
+            player_skills[skill].second += exp;
         }
 
-        void setResourceTarget(Resources item)
+        const bool levelUp(Skills skill) noexcept
         {
-            for(const Resource& resource : player_location->getResources())
-                if(item == resource.name)
-                    {
-                        resource_target = &resource;
-                        break;
-                    }
+            if(player_skills.at(skill).second < level_exp_mapping.at(player_skills.at(skill).first + 1))
+                return false;
+            player_skills[skill].first += 1;
+            return true;
+        }
+
+        uint8_t getLevel(Skills skill) const noexcept
+        {
+            return player_skills.at(skill).first;
         }
 
         PlayerState getAction() const noexcept
@@ -71,17 +60,15 @@ class Player
                 if(!slot.has_value())
                 {
                     slot.emplace(std::move(item));
+                    inventory_occupancy++;
                     return true;
                 }
             return false;
         }
 
-        Objects extractResource()
+        const bool isInventoryFull()
         {
-            Object object(resource_target->object_name);
-            if(addItem(object))
-                return object.name;
-            return NO_ITEM;
+            return inventory_occupancy == INVENTORY_SIZE;
         }
 };
 
