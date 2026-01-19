@@ -5,13 +5,13 @@
 
 class Player 
 {
-    std::unordered_map<Skills, std::pair<uint8_t, uint32_t>> player_skills = 
+    std::unordered_map<Skills, std::pair<uint8_t, uint32_t>> player_skills =
     {
-        {HEALTH, {10, 0}},
-        {MINING, {1, 0}}
+        {Skills::HEALTH, {10, 0}},
+        {Skills::MINING, {1, 0}}
     };
     std::array<std::optional<Object>, INVENTORY_SIZE> inventory;
-    PlayerState player_state = NONE;
+    PlayerState player_state = PlayerState::NONE;
     uint8_t inventory_occupancy = 0;
 
     public:
@@ -31,7 +31,7 @@ class Player
 
         const bool levelUp(Skills skill) noexcept
         {
-            if(player_skills.at(skill).second < level_exp_mapping.at(player_skills.at(skill).first + 1))
+            if(player_skills[skill].second < level_exp_mapping(player_skills[skill].first + 1))
                 return false;
             player_skills[skill].first += 1;
             return true;
@@ -66,7 +66,7 @@ class Player
             return false;
         }
 
-        const bool isInventoryFull()
+        const bool isInventoryFull() const noexcept
         {
             return inventory_occupancy == INVENTORY_SIZE;
         }

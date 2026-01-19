@@ -12,15 +12,15 @@ class Menu
     //2 < menu_box_height <= SCREEN_HEIGHT to accomodate at least 1 menu item
     //4 < menu_box_width <= SCREEN_WIDTH to accomodate at least 1 char
     //items[i].size() <= menu_box_width - 4 for all 0<=i<menu_size because menu item width shouldn't exceed menu box width
-    uint8_t index;
+    size_t index;
     const std::vector<std::string> items;
-    const uint8_t menu_size, menu_box_width, menu_box_height;
+    const size_t menu_size, menu_box_width, menu_box_height;
 
     public:
-        explicit Menu(std::vector<std::string> items, uint8_t menu_box_width) : 
+        explicit Menu(std::vector<std::string> items, size_t menu_box_width) : 
         index(0),
         items(std::move(items)),
-        menu_size(static_cast<uint8_t>(this->items.size())),
+        menu_size(this->items.size()),
         menu_box_width(menu_box_width),
         menu_box_height(menu_size + 2)
         {
@@ -58,12 +58,12 @@ class Menu
 
         void renderMenu(std::array<std::string, SCREEN_HEIGHT>& frame_buffer) const
         {
-            const uint8_t x_pad = (SCREEN_WIDTH  - menu_box_width)  / 2;
-            const uint8_t y_pad = (SCREEN_HEIGHT - menu_box_height) / 2;
+            const size_t x_pad = (SCREEN_WIDTH  - menu_box_width)  / 2;
+            const size_t y_pad = (SCREEN_HEIGHT - menu_box_height) / 2;
 
-            for (uint8_t row = 0; row < menu_box_height; row++)
+            for (size_t row = 0; row < menu_box_height; row++)
             {
-                uint8_t i = y_pad + row;
+                size_t i = y_pad + row;
                 if (row == 0 || row == menu_box_height - 1)
                 {
                     frame_buffer[i] =
@@ -73,9 +73,9 @@ class Menu
                 }
                 else
                 {
-                    const uint8_t item_idx = row - 1;
+                    const size_t item_idx = row - 1;
                     std::string q = (index == item_idx ? "->" : "") + items[item_idx];
-                    uint8_t content_width = menu_box_width - 2;
+                    size_t content_width = menu_box_width - 2;
                     frame_buffer[i] =
                     std::string(x_pad, ' ') +
                     "|" + q +

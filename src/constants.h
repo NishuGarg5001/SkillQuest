@@ -11,13 +11,14 @@
 #include <array>
 #include <vector>
 #include <string>
+#include <variant>
 
-constexpr uint8_t SCREEN_WIDTH  = 120;
-constexpr uint8_t SCREEN_HEIGHT = 29;
-constexpr uint8_t COMMAND_SCREEN_WIDTH = 99;
-constexpr uint8_t UI_SCREEN_WIDTH = SCREEN_WIDTH - (COMMAND_SCREEN_WIDTH + 1);
-constexpr uint8_t HISTORY_LENGTH = SCREEN_HEIGHT - 2;
-constexpr uint8_t INVENTORY_SIZE = 28;
+constexpr size_t SCREEN_WIDTH  = 120;
+constexpr size_t SCREEN_HEIGHT = 29;
+constexpr size_t COMMAND_SCREEN_WIDTH = 79;
+constexpr size_t UI_SCREEN_WIDTH = SCREEN_WIDTH - (COMMAND_SCREEN_WIDTH + 1);
+constexpr size_t HISTORY_LENGTH = SCREEN_HEIGHT - 2;
+constexpr size_t INVENTORY_SIZE = 28;
 constexpr auto tick = std::chrono::milliseconds(600);
 constexpr const char* RED    = "\x1b[31m";
 constexpr const char* GREEN  = "\x1b[32m";
@@ -29,17 +30,28 @@ constexpr const char* WHITE  = "\x1b[37m";
 
 using high_clock = std::chrono::high_resolution_clock;
 
-enum InputKey
+namespace CommandKey
 {
-    KEY_EXTENDED1 = 0,
-    KEY_EXTENDED2 = 224,
-    UP = 72,
-    DOWN = 80,
-    ENTER = 13,
-    ESC = 27
+    enum : uint8_t
+    {
+        RAW1 = 0,
+        RAW2 = 224,
+        UP = 72,
+        DOWN = 80,
+        ENTER = 13,
+        ESC = 27
+    };
 };
 
-enum GameState : std::uint8_t
+namespace TextualKey
+{
+    enum : uint8_t
+    {
+        BACKSPACE = 8
+    };
+};
+
+enum class GameState : uint8_t
 {
     QUIT,
     RUNNING,
@@ -48,19 +60,20 @@ enum GameState : std::uint8_t
     SAVE
 };
 
-enum PlayerState : std::uint8_t
+enum class PlayerState : uint8_t
 {
     NONE,
     MINING_STATE
 };
 
-enum ActionVerb : std::uint8_t
+enum class ActionVerb : uint8_t
 {
     NO_ACTION,
-    MINE
+    MINE,
+    USE
 };
 
-enum Resources : std::uint8_t
+enum class Resources : uint8_t
 {
     NO_RESOURCE,
     COPPER,
@@ -69,7 +82,7 @@ enum Resources : std::uint8_t
     GOLD
 };
 
-enum Objects : std::uint8_t
+enum class Objects : uint8_t
 {
     NO_ITEM,
     COPPER_ORE,
@@ -78,78 +91,114 @@ enum Objects : std::uint8_t
     GOLD_ORE
 };
 
-enum Skills : std::uint8_t
+enum class Skills : uint8_t
 {
+    NO_SKILL,
     HEALTH,
     MINING
 };
 
 const std::unordered_map<std::string_view, ActionVerb> action_map = 
 {
-    {"mine", MINE}
+    {"mine", ActionVerb::MINE}
 };
 
 const std::unordered_map<std::string_view, Resources> ores_map = 
 {
-    {"copper", COPPER},
-    {"tin", TIN},
-    {"iron", IRON},
-    {"gold", GOLD}
+    {"copper", Resources::COPPER},
+    {"tin", Resources::TIN},
+    {"iron", Resources::IRON},
+    {"gold", Resources::GOLD}
 };
 
-const std::unordered_map<Objects, std::string> objects_map_inverse = 
+std::string_view objects_map_inverse(Objects obj)
 {
-    {COPPER_ORE, "copper ore"},
-    {TIN_ORE, "tin ore"},
-    {IRON_ORE, "iron ore"},
-    {GOLD_ORE, "gold ore"}
-};
-
-const std::unordered_map<Resources, uint8_t> resource_min_level = 
-{
-    {COPPER, 1},
-    {TIN, 1},
-    {IRON, 10},
-    {GOLD, 20}
-};
-
-const std::unordered_map<Skills, std::unordered_map<Objects, std::pair<uint8_t, uint32_t>>> xp_table
-{
-    {MINING,
-        {
-            {COPPER_ORE, {1, 4}},
-            {TIN_ORE, {1, 4}},
-            {IRON_ORE, {10, 15}},
-            {GOLD_ORE, {20, 30}}
-        }
+    switch(obj)
+    {
+        case Objects::COPPER_ORE: return "copper ore";
+        case Objects::TIN_ORE: return "tin ore";
+        case Objects::IRON_ORE: return "iron ore";
+        case Objects::GOLD_ORE: return "gold ore";
+        default: return "null";
     }
-};
+}
 
-const std::unordered_map<ActionVerb, Skills> action_to_skill
+uint8_t resource_min_level(Resources resource)
 {
-    {MINE, MINING}
-};
+    switch(resource)
+    {
+        case Resources::COPPER: return 1;
+        case Resources::TIN: return 1;
+        case Resources::IRON: return 10;
+        case Resources::GOLD: return 20;
+        default: return 100;
+    }
+}
 
-const std::unordered_map<Skills, PlayerState> skill_to_playerstate
+std::pair<uint8_t, uint32_t> xp_table(Skills skill, Objects obj)
 {
-    {MINING, MINING_STATE}
-};
+    switch(skill)
+    {
+        case Skills::MINING:
+        switch(obj)
+        {
+            case Objects::COPPER_ORE: return {1, 4};
+            case Objects::TIN_ORE: return {1, 4};
+            case Objects::IRON_ORE: return {10, 15};
+            case Objects::GOLD_ORE: return {20, 30};
+            default: return {0, 0};
+        }
+        default: return {0, 0};
+    }
+}
 
-const std::unordered_map<PlayerState, Skills> playerstate_to_skill
+Skills action_to_skill(ActionVerb action)
 {
-    {MINING_STATE, MINING}
-};
+    switch(action)
+    {
+        case ActionVerb::MINE: return Skills::MINING;
+        default: return Skills::NO_SKILL;
+    }
+}
 
-const std::unordered_map<Skills, std::string> skill_to_verbose
+PlayerState skill_to_playerstate(Skills skill)
 {
-    {MINING, "mining"}
-};
+    switch(skill)
+    {
+        case Skills::MINING: return PlayerState::MINING_STATE;
+        default: return PlayerState::NONE;
+    }
+}
 
-const std::unordered_map<uint8_t, uint32_t> level_exp_mapping
+Skills playerstate_to_skill(PlayerState player_state)
 {
-    {1, 0},
-    {2, 83},
-    {3, 170}
-};
+    switch(player_state)
+    {
+        case PlayerState::MINING_STATE: return Skills::MINING;
+        default: return Skills::NO_SKILL;
+    }
+}
+
+std::string_view skill_to_verbose(Skills skill)
+{
+    switch(skill)
+    {
+        case Skills::HEALTH: return "health";
+        case Skills::MINING: return "mining";
+        default: return "null";
+    }
+}
+
+uint32_t level_exp_mapping(uint8_t level)
+{
+    switch(level)
+    {
+        case 1: return 0;
+        case 2: return 83;
+        case 3: return 170;
+        case 4: return 400;
+        default: return 10000000;
+    }
+}
 
 #endif

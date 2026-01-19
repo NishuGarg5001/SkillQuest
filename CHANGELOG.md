@@ -1,3 +1,12 @@
+#V 0.0.371
+-Converted all enums to enum classes
+-Separated InputKey to CommandKey and TextualKey
+-Converted most enum->enum/string maps from const expr arrays to switch case functions
+-Converted xp table to a switch case function
+-Updated pushHistory() logic to check for texts longer than COMMAND SCREEN WITH
+-Converted all size like constants and variables to size_t
+-Added .vscode/ to .gitignore
+
 #V 0.0.370
 -Added experience gain
 -Added level up
