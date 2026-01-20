@@ -5,21 +5,32 @@
 
 struct Object
 {
-    Objects name;
+    const ObjectName name;
 
-    explicit Object(Objects name) noexcept : name(name){}
+    explicit Object(ObjectName name) noexcept : 
+    name(name)
+    {}
 };
 
 struct Resource
 {
-    Resources name;
-    Object object;
-    int gen_rate; //gen rate = 40 means 1/40 gen rate per tick
-    
-    explicit Resource(Resources name, Objects object_name, int gen_rate) noexcept :
-    name(name),
-    object(Object(object_name)),
-    gen_rate(gen_rate)
+    const ResourceName name;
+    const Object object = Object(resource_to_object_mapping(name));
+    const uint16_t drop_rate = object_drop_rates(name, object.name);
+
+    explicit Resource(ResourceName name) noexcept :
+    name(name)
+    {}
+};
+
+struct DropResult
+{
+    const ObjectName obj_name;
+    const Rarity rarity;
+
+    explicit DropResult(ObjectName obj_name, Rarity rarity) noexcept :
+    obj_name(obj_name),
+    rarity(rarity)
     {}
 };
 

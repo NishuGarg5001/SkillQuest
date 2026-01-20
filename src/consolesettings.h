@@ -1,5 +1,8 @@
+#ifndef CONSOLESETTINGS_H
+#define CONSOLESETTINGS_H
 #ifdef _WIN32
 #include <windows.h>
+
 bool enableANSI()
 {
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -11,4 +14,11 @@ bool enableANSI()
     mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
     return SetConsoleMode(hOut, mode);
 }
+
+void enableUTF8()
+{
+    SetConsoleOutputCP(CP_UTF8);
+}
+
+#endif
 #endif

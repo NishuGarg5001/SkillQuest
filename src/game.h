@@ -41,16 +41,16 @@ class Game
     std::string command = "";
     GameState game_state = GameState::MAIN;
     Player player = Player();
-    Menu main_menu = Menu({"New Game", "Load Game", "Quit"}, 13);
-    Menu pause_menu =  Menu({"Continue", "Save Game", "Quit to Main Menu"}, 21);
-    Menu save_menu = Menu({"Slot 1", "Slot 2", "Slot 3"}, 10);
+    Menu main_menu = Menu({"New Game", "Load Game", "Quit"}, MAIN_MENU_BOX_WIDTH);
+    Menu pause_menu =  Menu({"Continue", "Save Game", "Quit to Main Menu"}, PAUSE_MENU_BOX_WIDTH);
+    Menu save_menu = Menu({"Slot 1", "Slot 2", "Slot 3"}, SAVE_MENU_BOX_WIDTH);
     const Resource* player_target = nullptr;
     const std::array<Resource, 4> game_resources =
     {
-        Resource(Resources::COPPER, Objects::COPPER_ORE, 10),
-        Resource(Resources::TIN, Objects::TIN_ORE, 10),
-        Resource(Resources::IRON, Objects::IRON_ORE, 40),
-        Resource(Resources::GOLD, Objects::GOLD_ORE, 40),
+        Resource(ResourceName::COPPER),
+        Resource(ResourceName::TIN),
+        Resource(ResourceName::IRON),
+        Resource(ResourceName::GOLD)
     };
 
     public:
@@ -191,8 +191,8 @@ class Game
                             }
                             case CommandKey::ENTER:
                             {
-                                auto parsed_command = parseCommand();
-                                if(parsed_command.second != Resources::NO_RESOURCE)
+                                std::pair<ActionVerb, ResourceName> parsed_command = parseCommand();
+                                if(parsed_command.second != ResourceName::NO_RESOURCE)
                                     handleCommand(parsed_command);
                                     pushHistory(command);
                                 clearCommand();
@@ -212,7 +212,7 @@ class Game
 
         void newGame() noexcept
         {
-            player = Player();
+            player.reset();
             history.clear();
         }
 
@@ -244,7 +244,7 @@ class Game
             history.push_back(std::move(text));
         }
 
-        bool setPlayerTarget(Resources item)
+        bool setPlayerTarget(ResourceName item)
         {
             for (const Resource& resource : game_resources)
             {
@@ -258,14 +258,15 @@ class Game
             return false;
         }
 
-        Objects extractResource()
+        DropResult extractResource() //Extracts resource and adds it to inventory, returns name to updateState for verbose
         {
             if(player_target == nullptr)
-                return Objects::NO_ITEM;
-            if(random_int(0, player_target->gen_rate - 1) == 0)
-            if(player.addItem(player_target->object))
-                return player_target->object.name;
-            return Objects::NO_ITEM;
+                return DropResult(ObjectName::NO_ITEM, Rarity::ALWAYS);
+            //handle drop_rate = 0 case
+            if(random_int(0, player_target->drop_rate - 1) == 0)
+                if(player.addItem(player_target->object))
+                    return DropResult(player_target->object.name, drop_rate_to_rarity(player_target->drop_rate));
+            return DropResult(ObjectName::NO_ITEM, Rarity::ALWAYS);
         }
 
         void updateState()
@@ -277,8 +278,8 @@ class Game
                 uint32_t exp;
                 if(player_target)  //if player has a target resource, it is an extraction kind of skill task
                 {
-                    Objects object_name = extractResource();
-                    if(object_name == Objects::NO_ITEM)
+                    DropResult drop = extractResource();
+                    if(drop.obj_name == ObjectName::NO_ITEM)
                     {
                         if(player.isInventoryFull())
                         {
@@ -291,10 +292,10 @@ class Game
                     switch(action)
                     {
                         case PlayerState::MINING_STATE:
-                            pushHistory(std::string("You mined a ") + BROWN + std::string(objects_map_inverse(object_name)) + WHITE + ".");
+                            pushHistory(std::string("You mined a ") + rarity_to_color(drop.rarity) + std::string(objects_map_inverse(drop.obj_name)) + RESET + ".");
                             break;
                     }
-                    exp = xp_table(skill, object_name).second;
+                    exp = xp_table(skill, drop.obj_name).second;
                 }
                 //else {} block to be added her for non-extraction skill based tasks
                 /*
@@ -303,10 +304,9 @@ class Game
                     exp =
                 }
                 */
-                player.gainExperience(skill, exp);
                 std::string skill_str = std::string(skill_to_verbose(skill));
                 pushHistory("You gained " + std::to_string(exp) + " " + skill_str + " experience.");
-                if(player.levelUp(skill))
+                if(player.gainExperience(skill, exp))
                     pushHistory("Congratulations! You have gained 1 " + skill_str + " level. Your " + skill_str + " level is now "
                     + std::to_string(player.getLevel(skill)) + ".");
             }
@@ -346,16 +346,16 @@ class Game
                 command.pop_back();
         }
 
-        std::pair<ActionVerb, Resources> parseCommand() const noexcept
+        std::pair<ActionVerb, ResourceName> parseCommand() const noexcept
         {
             size_t pos = command.find(' ');
             if(pos == std::string::npos)
-                return {ActionVerb::NO_ACTION, Resources::NO_RESOURCE};
+                return {ActionVerb::NO_ACTION, ResourceName::NO_RESOURCE};
             std::string_view verb(command.data(), pos);
             std::string_view obj(command.data() + pos + 1);
             auto it = action_map.find(verb);
             if(it == action_map.end())
-                return {ActionVerb::NO_ACTION, Resources::NO_RESOURCE};
+                return {ActionVerb::NO_ACTION, ResourceName::NO_RESOURCE};
             switch(it->second)
             {
                 case ActionVerb::MINE:
@@ -363,14 +363,14 @@ class Game
                     auto it2 = ores_map.find(obj);
                     if(it2 != ores_map.end())
                         return {it->second, it2->second};
-                    return {it->second, Resources::NO_RESOURCE};
+                    return {ActionVerb::NO_ACTION, ResourceName::NO_RESOURCE};
                     break;
                 }
             }
-            return {ActionVerb::NO_ACTION, Resources::NO_RESOURCE};
+            return {ActionVerb::NO_ACTION, ResourceName::NO_RESOURCE};
         }
 
-        void handleCommand(const std::pair<ActionVerb, Resources>& parsed_command) noexcept
+        void handleCommand(std::pair<ActionVerb, ResourceName> parsed_command) noexcept
         {
             if(setPlayerTarget(parsed_command.second))
             {
@@ -398,8 +398,19 @@ class Game
                 for(size_t i = 0; i < HISTORY_LENGTH; i++)
                     frame_buffer[i] = history[i] + std::string(COMMAND_SCREEN_WIDTH - visible_length(history[i]), ' ') + "|";
 
-            frame_buffer[SCREEN_HEIGHT - 2] = std::string(COMMAND_SCREEN_WIDTH, '_') + "|";
-            frame_buffer[SCREEN_HEIGHT - 1] = command + std::string(COMMAND_SCREEN_WIDTH - command.size(), ' ') + "|";
+            frame_buffer[SCREEN_HEIGHT - 2].replace(0, COMMAND_SCREEN_WIDTH + 1, std::string(COMMAND_SCREEN_WIDTH, '_') + "|");
+            frame_buffer[SCREEN_HEIGHT - 1].replace(0, COMMAND_SCREEN_WIDTH + 1, command + std::string(COMMAND_SCREEN_WIDTH - command.size(), 
+            ' ') + "|");
+
+            if(player.getAction() == PlayerState::MINING_STATE)
+            {
+                Skills skill = playerstate_to_skill(player.getAction());
+                std::string_view skill_v = skill_to_verbose(skill);
+                frame_buffer[SCREEN_HEIGHT - 2].replace(COMMAND_SCREEN_WIDTH + 1, skill_v.size(), skill_v);
+                size_t prog = player.expProgress(skill);
+                frame_buffer[SCREEN_HEIGHT - 1].replace(COMMAND_SCREEN_WIDTH + 1, PROGRESSBAR_PARTITIONS + 1, std::string(prog, '.') +
+                std::string(PROGRESSBAR_PARTITIONS - prog, ' ') + "|");
+            }
         }
 
         void renderFrame()

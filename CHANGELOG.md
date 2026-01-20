@@ -1,3 +1,15 @@
+#V 0.0.372
+-Added drop rate and rarity attributes to resources
+-Added drop rate to rarity mapping
+-Simplified Object struct
+-Added more mappings
+-Added DropResult struct which is result of Object generation
+-Added rarity based color coding to verbose
+-Added implementation for tracking exp progress
+-Added support for Unicode characters
+-enableansi.h renamed to consolesettings.h
+-Todo: Add functionality to view inventory --> will require generalizing command parser
+
 #V 0.0.371
 -Converted all enums to enum classes
 -Separated InputKey to CommandKey and TextualKey

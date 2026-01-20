@@ -7,7 +7,7 @@ class Player
 {
     std::unordered_map<Skills, std::pair<uint8_t, uint32_t>> player_skills =
     {
-        {Skills::HEALTH, {10, 0}},
+        {Skills::HEALTH, {10, 1154}},
         {Skills::MINING, {1, 0}}
     };
     std::array<std::optional<Object>, INVENTORY_SIZE> inventory;
@@ -15,26 +15,40 @@ class Player
     uint8_t inventory_occupancy = 0;
 
     public:
-        Player() noexcept {}
+        Player() noexcept
+        {}
 
-        const bool hasEnoughSkillLevel(Skills skill, uint8_t level) const noexcept
+        bool hasEnoughSkillLevel(Skills skill, uint8_t level) const noexcept
         {
             if(player_skills.at(skill).first >= level)
                 return true;
             return false;
         }
 
-        void gainExperience(Skills skill, uint32_t exp) noexcept
+        bool gainExperience(Skills skill, uint32_t exp) noexcept
         {
             player_skills[skill].second += exp;
-        }
-
-        const bool levelUp(Skills skill) noexcept
-        {
             if(player_skills[skill].second < level_exp_mapping(player_skills[skill].first + 1))
                 return false;
-            player_skills[skill].first += 1;
+            levelUp(skill);
             return true;
+        }
+
+        size_t expProgress(Skills skill) noexcept
+        {
+            //ceil(a/b) = (a + b - 1)/b for unsigned integers
+            uint32_t player_exp = player_skills[skill].second;
+            if(player_skills[skill].first > 1)
+                player_exp -= level_exp_mapping(player_skills[skill].first);
+            uint32_t required_exp = level_exp_mapping(player_skills[skill].first + 1) - level_exp_mapping(player_skills[skill].first);
+            if (player_exp == 0 || required_exp == 0)
+                return 0;
+            return (player_exp * PROGRESSBAR_PARTITIONS + required_exp - 1)/required_exp;
+        }
+
+        void levelUp(Skills skill) noexcept
+        {
+            player_skills[skill].first += 1;
         }
 
         uint8_t getLevel(Skills skill) const noexcept
@@ -52,7 +66,7 @@ class Player
             player_state = action;
         }
 
-        const bool addItem(Object item) //Cannot be Object& because resource needs to return object.name
+        bool addItem(Object item) //Cannot be Object& because resource needs to return object.name
         //and after move, item will be eaten up by slot and if item is a reference to object, object will not be able
         //to return object.name as it will become empty
         {
@@ -66,9 +80,23 @@ class Player
             return false;
         }
 
-        const bool isInventoryFull() const noexcept
+        bool isInventoryFull() const noexcept
         {
             return inventory_occupancy == INVENTORY_SIZE;
+        }
+
+        void reset() noexcept
+        {
+            player_skills = 
+            {
+                {Skills::HEALTH, {10, 0}},
+                {Skills::MINING, {1, 0}}
+            };
+
+            for (auto& slot : inventory)
+                slot.reset();
+            inventory_occupancy = 0;
+            player_state = PlayerState::NONE;
         }
 };
 
