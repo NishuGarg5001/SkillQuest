@@ -47,10 +47,10 @@ class Game
     const Resource* player_target = nullptr;
     const std::array<Resource, 4> game_resources =
     {
-        Resource(ResourceName::COPPER),
-        Resource(ResourceName::TIN),
-        Resource(ResourceName::IRON),
-        Resource(ResourceName::GOLD)
+        resource_list.at(COPPER),
+        resource_list.at(TIN),
+        resource_list.at(IRON),
+        resource_list.at(GOLD)
     };
 
     public:
@@ -192,9 +192,11 @@ class Game
                             case CommandKey::ENTER:
                             {
                                 std::pair<ActionVerb, ResourceName> parsed_command = parseCommand();
-                                if(parsed_command.second != ResourceName::NO_RESOURCE)
-                                    handleCommand(parsed_command);
+                                if(parsed_command.second != NO_RESOURCE)
+                                {
                                     pushHistory(command);
+                                    handleCommand(parsed_command);
+                                }
                                 clearCommand();
                                 break;
                             }
@@ -258,44 +260,62 @@ class Game
             return false;
         }
 
-        DropResult extractResource() //Extracts resource and adds it to inventory, returns name to updateState for verbose
+        std::vector<DropResult> extractResource() 
+        //Extracts resource and adds it to inventory, returns name to updateState for verbose
         {
             if(player_target == nullptr)
-                return DropResult(ObjectName::NO_ITEM, Rarity::ALWAYS);
+                return {};
             //handle drop_rate = 0 case
-            if(random_int(0, player_target->drop_rate - 1) == 0)
-                if(player.addItem(player_target->object))
-                    return DropResult(player_target->object.name, drop_rate_to_rarity(player_target->drop_rate));
-            return DropResult(ObjectName::NO_ITEM, Rarity::ALWAYS);
+            std::vector<DropResult> res = {};
+            res.reserve(player_target->len);
+            for (size_t i=0; i<player_target->len; i++)
+            {
+                if(random_int(0, player_target->drop_rates[i] - 1) == 0)
+                        if(player.addItem(player_target->objects[i]))
+                            res.emplace_back(player_target->objects[i].name, player_target->rarities[i], player_target->rarity_colors[i],
+                            player_target->exps[i]);
+            }
+            if(!res.empty())
+                return res;
+            return {};
         }
 
         void updateState()
         {
             PlayerState action = player.getAction();
-            if(action == PlayerState::MINING_STATE) //If a skill-based action
+            if(action == MINING_STATE) //If a skill-based action
             {
                 Skills skill = playerstate_to_skill(action);
-                uint32_t exp;
                 if(player_target)  //if player has a target resource, it is an extraction kind of skill task
                 {
-                    DropResult drop = extractResource();
-                    if(drop.obj_name == ObjectName::NO_ITEM)
+                    auto drop = extractResource();
+                    if(drop.empty())
                     {
                         if(player.isInventoryFull())
                         {
                             pushHistory("Your inventory is full!");
                             player_target = nullptr;
-                            player.startAction(PlayerState::NONE);
+                            player.startAction(NONE);
                         }
                         return;
                     }
-                    switch(action)
+                    else
                     {
-                        case PlayerState::MINING_STATE:
-                            pushHistory(std::string("You mined a ") + rarity_to_color(drop.rarity) + std::string(objects_map_inverse(drop.obj_name)) + RESET + ".");
-                            break;
+                        for(size_t i=0; i<drop.size(); i++)
+                        {
+                            switch(action)
+                            {
+                                case MINING_STATE:
+                                    pushHistory(std::string("You mined a ") + drop[i].rarity_color + std::string(objects_map_inverse(drop[i].obj_name)) + RESET + ".");
+                                    break;
+                            }
+                            std::string skill_str = std::string(skill_to_verbose(skill));
+                            pushHistory("You gained " + std::to_string(drop[i].exp) + " " + skill_str + " experience.");
+                            if(player.gainExperience(skill, drop[i].exp))
+                                pushHistory("Congratulations! You have gained 1 " + skill_str + " level. Your " + skill_str + " level is now "
+                                + std::to_string(player.getLevel(skill)) + ".");
+                        }
                     }
-                    exp = xp_table(skill, drop.obj_name).second;
                 }
                 //else {} block to be added her for non-extraction skill based tasks
                 /*
@@ -304,17 +324,12 @@ class Game
                     exp =
                 }
                 */
-                std::string skill_str = std::string(skill_to_verbose(skill));
-                pushHistory("You gained " + std::to_string(exp) + " " + skill_str + " experience.");
-                if(player.gainExperience(skill, exp))
-                    pushHistory("Congratulations! You have gained 1 " + skill_str + " level. Your " + skill_str + " level is now "
-                    + std::to_string(player.getLevel(skill)) + ".");
             }
             else
             {
-                switch(player.getAction())
+                switch(action)
                 {
-                    case PlayerState::NONE:
+                    case NONE:
                         break;
                 }
             }
@@ -350,24 +365,24 @@ class Game
         {
             size_t pos = command.find(' ');
             if(pos == std::string::npos)
-                return {ActionVerb::NO_ACTION, ResourceName::NO_RESOURCE};
+                return {NO_ACTION, NO_RESOURCE};
             std::string_view verb(command.data(), pos);
             std::string_view obj(command.data() + pos + 1);
             auto it = action_map.find(verb);
             if(it == action_map.end())
-                return {ActionVerb::NO_ACTION, ResourceName::NO_RESOURCE};
+                return {NO_ACTION, NO_RESOURCE};
             switch(it->second)
             {
-                case ActionVerb::MINE:
+                case MINE:
                 {
                     auto it2 = ores_map.find(obj);
                     if(it2 != ores_map.end())
                         return {it->second, it2->second};
-                    return {ActionVerb::NO_ACTION, ResourceName::NO_RESOURCE};
+                    return {NO_ACTION, NO_RESOURCE};
                     break;
                 }
             }
-            return {ActionVerb::NO_ACTION, ResourceName::NO_RESOURCE};
+            return {NO_ACTION, NO_RESOURCE};
         }
 
         void handleCommand(std::pair<ActionVerb, ResourceName> parsed_command) noexcept
@@ -375,7 +390,7 @@ class Game
             if(setPlayerTarget(parsed_command.second))
             {
                 Skills skill = action_to_skill(parsed_command.first);
-                if(!player.hasEnoughSkillLevel(skill, resource_min_level(player_target->name)))
+                if(!player.hasEnoughSkillLevel(skill, player_target->resource_min_level))
                 {
                     pushHistory("You do not have enough " + std::string(skill_to_verbose(skill)) + " level!");
                     return;
@@ -402,7 +417,7 @@ class Game
             frame_buffer[SCREEN_HEIGHT - 1].replace(0, COMMAND_SCREEN_WIDTH + 1, command + std::string(COMMAND_SCREEN_WIDTH - command.size(), 
             ' ') + "|");
 
-            if(player.getAction() == PlayerState::MINING_STATE)
+            if(player.getAction() == MINING_STATE)
             {
                 Skills skill = playerstate_to_skill(player.getAction());
                 std::string_view skill_v = skill_to_verbose(skill);

@@ -7,11 +7,11 @@ class Player
 {
     std::unordered_map<Skills, std::pair<uint8_t, uint32_t>> player_skills =
     {
-        {Skills::HEALTH, {10, 1154}},
-        {Skills::MINING, {1, 0}}
+        {HEALTH, {10, 1154}},
+        {MINING, {1, 0}}
     };
     std::array<std::optional<Object>, INVENTORY_SIZE> inventory;
-    PlayerState player_state = PlayerState::NONE;
+    PlayerState player_state = NONE;
     uint8_t inventory_occupancy = 0;
 
     public:
@@ -89,14 +89,14 @@ class Player
         {
             player_skills = 
             {
-                {Skills::HEALTH, {10, 0}},
-                {Skills::MINING, {1, 0}}
+                {HEALTH, {10, 0}},
+                {MINING, {1, 0}}
             };
 
             for (auto& slot : inventory)
                 slot.reset();
             inventory_occupancy = 0;
-            player_state = PlayerState::NONE;
+            player_state = NONE;
         }
 };
 

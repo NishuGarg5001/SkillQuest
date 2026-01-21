@@ -1,3 +1,10 @@
+#V 0.0373
+-Combined a lot of maps together
+-Shifted most of the current game data into Resource class attributes (where it should actually belong)
+-Expanded Resource class to store a vector of objects instead of just one object
+-Using enum namespaces now, simplified code
+-Todo: Add functionality to view inventory --> will require generalizing command parser
+
 #V 0.0.372
 -Added drop rate and rarity attributes to resources
 -Added drop rate to rarity mapping

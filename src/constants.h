@@ -13,6 +13,7 @@
 #include <string>
 #include <variant>
 #include <cstring>
+#include <algorithm>
 
 constexpr size_t SCREEN_WIDTH  = 120;
 constexpr size_t SCREEN_HEIGHT = 29;
@@ -116,57 +117,35 @@ enum class Skills : uint8_t
     MINING
 };
 
+using enum Rarity;
+using enum ActionVerb;
+using enum PlayerState;
+using enum ResourceName;
+using enum ObjectName;
+using enum Skills;
+
 const std::unordered_map<std::string_view, ActionVerb> action_map = 
 {
-    {"mine", ActionVerb::MINE}
+    {"mine", MINE}
 };
 
 const std::unordered_map<std::string_view, ResourceName> ores_map = 
 {
-    {"copper", ResourceName::COPPER},
-    {"tin", ResourceName::TIN},
-    {"iron", ResourceName::IRON},
-    {"gold", ResourceName::GOLD}
+    {"copper", COPPER},
+    {"tin", TIN},
+    {"iron", IRON},
+    {"gold", GOLD}
 };
 
 std::string_view objects_map_inverse(ObjectName obj)
 {
     switch(obj)
     {
-        case ObjectName::COPPER_ORE: return "copper ore";
-        case ObjectName::TIN_ORE: return "tin ore";
-        case ObjectName::IRON_ORE: return "iron ore";
-        case ObjectName::GOLD_ORE: return "gold ore";
+        case COPPER_ORE: return "copper ore";
+        case TIN_ORE: return "tin ore";
+        case IRON_ORE: return "iron ore";
+        case GOLD_ORE: return "gold ore";
         default: return "null";
-    }
-}
-
-uint8_t resource_min_level(ResourceName resource_name)
-{
-    switch(resource_name)
-    {
-        case ResourceName::COPPER: return 1;
-        case ResourceName::TIN: return 1;
-        case ResourceName::IRON: return 10;
-        case ResourceName::GOLD: return 20;
-        default: return 100;
-    }
-}
-
-std::pair<uint8_t, uint32_t> xp_table(Skills skill, ObjectName obj_name)
-{
-    switch(skill)
-    {
-        case Skills::MINING:
-        switch(obj_name)
-        {
-            case ObjectName::COPPER_ORE: return {1, 4};
-            case ObjectName::TIN_ORE: return {1, 4};
-            case ObjectName::IRON_ORE: return {10, 15};
-            case ObjectName::GOLD_ORE: return {20, 30};
-            default: return {0, 0};
-        }
-        default: return {0, 0};
     }
 }
 
@@ -174,8 +153,8 @@ Skills action_to_skill(ActionVerb action)
 {
     switch(action)
     {
-        case ActionVerb::MINE: return Skills::MINING;
-        default: return Skills::NO_SKILL;
+        case ActionVerb::MINE: return MINING;
+        default: return NO_SKILL;
     }
 }
 
@@ -183,8 +162,8 @@ PlayerState skill_to_playerstate(Skills skill)
 {
     switch(skill)
     {
-        case Skills::MINING: return PlayerState::MINING_STATE;
-        default: return PlayerState::NONE;
+        case MINING: return MINING_STATE;
+        default: return NONE;
     }
 }
 
@@ -192,8 +171,8 @@ Skills playerstate_to_skill(PlayerState player_state)
 {
     switch(player_state)
     {
-        case PlayerState::MINING_STATE: return Skills::MINING;
-        default: return Skills::NO_SKILL;
+        case MINING_STATE: return MINING;
+        default: return NO_SKILL;
     }
 }
 
@@ -201,8 +180,8 @@ std::string_view skill_to_verbose(Skills skill)
 {
     switch(skill)
     {
-        case Skills::HEALTH: return "health";
-        case Skills::MINING: return "mining";
+        case HEALTH: return "health";
+        case MINING: return "mining";
         default: return "null";
     }
 }
@@ -226,74 +205,44 @@ uint32_t level_exp_mapping(uint8_t level)
     }
 }
 
-Rarity drop_rate_to_rarity(uint16_t drop_rate)
+std::vector<Rarity> drop_rate_to_rarity(const std::vector<uint16_t>& drop_rates)
 {
-    if(drop_rate > 500)
-        return Rarity::VERY_RARE;
-    if(drop_rate > 125)
-        return Rarity::RARE;
-    if(drop_rate > 40)
-        return Rarity::UNCOMMON;
-    if(drop_rate > 1)
-        return Rarity::COMMON;
-    return Rarity::ALWAYS;
+    std::vector<Rarity> res{};
+    res.reserve(drop_rates.size());
+    for(size_t i=0; i<drop_rates.size(); i++)
+    {
+        uint16_t drop_rate = drop_rates[i];
+        if(drop_rate > 500)
+            res.push_back(VERY_RARE);
+        else if(drop_rate > 125)
+            res.push_back(RARE);
+        else if(drop_rate > 40)
+            res.push_back(UNCOMMON);
+        else if(drop_rate > 1)
+            res.push_back(COMMON);
+        else
+            res.push_back(ALWAYS);
+    }
+    return res;
 }
 
-const char* rarity_to_color(Rarity rarity)
+std::vector<const char*> rarity_to_color(const std::vector<Rarity>& rarity)
 {
-    switch(rarity)
+    std::vector<const char*> res{};
+    res.reserve(rarity.size());
+    for(size_t i=0; i<rarity.size(); i++)
     {
-        case Rarity::ALWAYS: return WHITE;
-        case Rarity::COMMON: return BROWN;
-        case Rarity::UNCOMMON: return YELLOW;
-        case Rarity::RARE: return ORANGE;
-        case Rarity::VERY_RARE: return RED;
-        default: return WHITE;
+        switch(rarity[i])
+        {
+            case ALWAYS: res.push_back(WHITE); break;
+            case COMMON: res.push_back(BROWN); break;
+            case UNCOMMON: res.push_back(YELLOW); break;
+            case RARE: res.push_back(ORANGE); break;
+            case VERY_RARE: res.push_back(RED); break;
+            default: res.push_back(WHITE);
+        }
     }
-}
-
-uint16_t object_drop_rates(ResourceName resource_name, ObjectName obj_name) //drop rate x means object has a 1/x drop rate
-{
-    switch(resource_name)
-    {
-        case ResourceName::COPPER:
-            switch(obj_name)
-            {
-                case ObjectName::COPPER_ORE: return 1;
-                default: return 1;
-            }
-        case ResourceName::TIN:
-            switch(obj_name)
-            {
-                case ObjectName::TIN_ORE: return 10;
-                default: return 1;
-            }
-        case ResourceName::IRON:
-            switch(obj_name)
-            {
-                case ObjectName::IRON_ORE: return 15;
-                default: return 1;
-            }
-        case ResourceName::GOLD:
-            switch(obj_name)
-            {
-                case ObjectName::GOLD_ORE: return 20;
-                default: return 1;
-            }
-        default: return 1;
-    }
-}
-
-ObjectName resource_to_object_mapping(ResourceName resource_name)
-{
-    switch(resource_name)
-    {
-        case ResourceName::COPPER: return ObjectName::COPPER_ORE;
-        case ResourceName::TIN: return ObjectName::TIN_ORE;
-        case ResourceName::IRON: return ObjectName::IRON_ORE;
-        case ResourceName::GOLD: return ObjectName::GOLD_ORE;
-        default: return ObjectName::NO_ITEM;
-    }
+    return res;
 }
 
 #endif
