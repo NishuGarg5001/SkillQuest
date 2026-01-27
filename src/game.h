@@ -5,45 +5,53 @@
 #include "player.h"
 #include "random.h"
 
-size_t visible_length(const std::string& s)
+struct Command
 {
-    size_t len = 0;
-    size_t virtual_size = s.size();
-    for (size_t i = 0; i < virtual_size;)
-    {
-        if (s[i] == '\x1b' && i + 1 < virtual_size && s[i + 1] == '[')
-        {
-            i += 2;
-            while (i < virtual_size && s[i] != 'm')
-                ++i;
-            if (i < virtual_size)
-                ++i;
-        }
-        else
-        {
-            ++len;
-            ++i;
-        }
-    }
-    return len;
-}
+    ActionVerb verb = INVALID;
+    ResourceName target_resource = NO_RESOURCE;
+    VerbObject verb_object = NO_OBJECT;
+
+    explicit Command(ActionVerb verb, ResourceName target_resource, VerbObject verb_object) :
+    verb(verb),
+    target_resource(target_resource),
+    verb_object(verb_object)
+    {}
+};
+
+struct Word
+{
+    const std::string text;
+    const SDL_Color color;
+    const float pos_x;
+    float pos_y;
+    const size_t width;
+
+    explicit Word(std::string text, SDL_Color color, float x, float y, size_t width) :
+    text(std::move(text)),
+    color(color),
+    pos_x(x),
+    pos_y(y),
+    width(width)
+    {}
+};
 
 class Game
 {
-    //invariants
-    //0 < fps < 61
-    //history.size() < SCREEN_HEIGHT - 1
-    //history[i].size() <= COMMAND_SCREEN_WIDTH
-
-    uint8_t fps = 60;
-    std::array<std::string, SCREEN_HEIGHT> frame_buffer;
-    std::deque<std::string> history;
+    SDL_Window* window = nullptr;
+    SDL_Renderer* renderer = nullptr;
+    TTF_Font* font = nullptr;
+    int fps = 60;
+    int frame_time = 1000 / fps;
+    bool cursor_visible = false;
+    Uint64 last_cursor_toggle = 0;
+    std::deque<std::vector<Word>> text_buffer;
     std::string command = "";
     GameState game_state = GameState::MAIN;
+    UIState ui_state = UIState::BLANK;
     Player player = Player();
-    Menu main_menu = Menu({"New Game", "Load Game", "Quit"}, MAIN_MENU_BOX_WIDTH);
-    Menu pause_menu =  Menu({"Continue", "Save Game", "Quit to Main Menu"}, PAUSE_MENU_BOX_WIDTH);
-    Menu save_menu = Menu({"Slot 1", "Slot 2", "Slot 3"}, SAVE_MENU_BOX_WIDTH);
+    Menu main_menu = Menu({"New Game", "Load Game", "Quit"}, MAIN_MENU_BOX_WIDTH, MAIN_MENU_BOX_HEIGHT);
+    Menu pause_menu =  Menu({"Continue", "Save Game", "Quit to Main Menu"}, PAUSE_MENU_BOX_WIDTH, PAUSE_MENU_BOX_HEIGHT);
+    Menu save_menu = Menu({"Slot 1", "Slot 2", "Slot 3"}, SAVE_MENU_BOX_WIDTH, SAVE_MENU_BOX_HEIGHT);
     const Resource* player_target = nullptr;
     const std::array<Resource, 4> game_resources =
     {
@@ -54,196 +62,219 @@ class Game
     };
 
     public:
-        Game() noexcept {}
-
-        void setFPS(uint8_t fps) noexcept
-        {
-            if(fps == 0)
-                this->fps = 1;
-            else if(fps > 60)
-                this->fps = 60;
-            else
-                this->fps = fps;
-        }
-
-        void clearFrame() noexcept
-        {
-            for (std::string& row: frame_buffer)
-                row.assign(SCREEN_WIDTH, ' ');
-        }
-
-        uint8_t readRawInput()
-        {
-            int key = _getch();
-            if(key == CommandKey::RAW1 || key == CommandKey::RAW2)
-                return static_cast<uint8_t>(_getch());
-            return static_cast<uint8_t>(key);
-        }
+        Game(){}
 
         void handleInput()
         {
-            if (_kbhit())
+            SDL_Event event;
+            while(SDL_PollEvent(&event))
             {
-                uint8_t key = readRawInput();
+                (game_state == GameState::RUNNING) ? SDL_StartTextInput(window) : SDL_StopTextInput(window);
                 switch(game_state)
                 {
                     case GameState::MAIN:
                     {
-                        switch(key)
+                        if(event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat)
                         {
-                            case CommandKey::UP:
+                            switch(event.key.key)
                             {
-                                main_menu.moveUp();
-                                break;
-                            }
-                            case CommandKey::DOWN:
-                            {
-                                main_menu.moveDown();
-                                break;
-                            }
-                            case CommandKey::ENTER:
-                            {
-                                std::string_view main_menu_item_name = main_menu.currentItem();
-                                if(main_menu_item_name == "New Game" || main_menu_item_name == "Load Game")
+                                case SDLK_UP:
                                 {
-                                    game_state = GameState::RUNNING;
-                                    if (main_menu_item_name == "New Game")
-                                        newGame();
-                                    else
-                                        loadGame();
+                                    main_menu.moveUp();
+                                    break;
                                 }
-                                else
-                                    game_state = GameState::QUIT;
-                                break;
+                                case SDLK_DOWN:
+                                {
+                                    main_menu.moveDown();
+                                    break;
+                                }
+                                case SDLK_RETURN:
+                                {
+                                    std::string_view main_menu_item_name = main_menu.currentItem();
+                                    if(main_menu_item_name == "New Game" || main_menu_item_name == "Load Game")
+                                    {
+                                        game_state = GameState::RUNNING;
+                                        if (main_menu_item_name == "New Game")
+                                            newGame();
+                                        else
+                                            loadGame();
+                                    }
+                                    else
+                                        game_state = GameState::QUIT;
+                                    break;
+                                }
                             }
                         }
                         break;
                     }
                     case GameState::PAUSE:
                     {
-                        switch(key)
+                        if(event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat)
                         {
-                            case CommandKey::UP:
+                            switch(event.key.key)
                             {
-                                pause_menu.moveUp();
-                                break;
-                            }
-                            case CommandKey::DOWN:
-                            {
-                                pause_menu.moveDown();
-                                break;
-                            }
-                            case CommandKey::ENTER:
-                            {
-                                std::string_view pause_menu_item_name = pause_menu.currentItem();
-                                if(pause_menu_item_name == "Continue")
+                                case SDLK_UP:
+                                {
+                                    pause_menu.moveUp();
+                                    break;
+                                }
+                                case SDLK_DOWN:
+                                {
+                                    pause_menu.moveDown();
+                                    break;
+                                }
+                                case SDLK_RETURN:
+                                {
+                                    std::string_view pause_menu_item_name = pause_menu.currentItem();
+                                    if(pause_menu_item_name == "Continue")
+                                        game_state = GameState::RUNNING;
+                                    else if(pause_menu_item_name == "Save Game")
+                                        game_state = GameState::SAVE;
+                                    else
+                                        game_state = GameState::MAIN;
+                                    break;
+                                }
+                                case SDLK_ESCAPE:
+                                {
                                     game_state = GameState::RUNNING;
-                                else if(pause_menu_item_name == "Save Game")
-                                    game_state = GameState::SAVE;
-                                else
-                                    game_state = GameState::MAIN;
-                                break;
-                            }
-                            case CommandKey::ESC:
-                            {
-                                game_state = GameState::RUNNING;
-                                break;
+                                    break;
+                                }
                             }
                         }
                         break;
                     }
                     case GameState::SAVE:
                     {
-                        switch(key)
+                        if(event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat)
                         {
-                            case CommandKey::UP:
+                            switch(event.key.key)
                             {
-                                save_menu.moveUp();
-                                break;
-                            }
-                            case CommandKey::DOWN:
-                            {
-                                save_menu.moveDown();
-                                break;
-                            }
-                            case CommandKey::ENTER:
-                            {
-                                saveGame();
-                                game_state = GameState::RUNNING;
-                                break;
-                            }
-                            case CommandKey::ESC:
-                            {
-                                game_state = GameState::PAUSE;
-                                break;
+                                case SDLK_UP:
+                                {
+                                    save_menu.moveUp();
+                                    break;
+                                }
+                                case SDLK_DOWN:
+                                {
+                                    save_menu.moveDown();
+                                    break;
+                                }
+                                case SDLK_RETURN:
+                                {
+                                    saveGame();
+                                    game_state = GameState::RUNNING;
+                                    break;
+                                }
+                                case SDLK_ESCAPE:
+                                {
+                                    game_state = GameState::PAUSE;
+                                    break;
+                                }
                             }
                         }
                         break;
                     }
                     case GameState::RUNNING:
                     {
-                        switch(key)
+                        if(event.type == SDL_EVENT_TEXT_INPUT)
                         {
-                            case CommandKey::ESC:
+                            if(getTextLen(command) + getTextLen(event.text.text) <= VLINE_OFFSET)
+                                command += event.text.text;
+                        }
+
+                        else if(event.type == SDL_EVENT_KEY_DOWN)
+                        {
+                            if(!event.key.repeat)
                             {
-                                game_state = GameState::PAUSE;
-                                break;
-                            }
-                            case CommandKey::ENTER:
-                            {
-                                std::pair<ActionVerb, ResourceName> parsed_command = parseCommand();
-                                if(parsed_command.second != NO_RESOURCE)
+                                switch(event.key.key)
                                 {
-                                    pushHistory(command);
-                                    handleCommand(parsed_command);
+                                    case SDLK_ESCAPE:
+                                    {
+                                        game_state = GameState::PAUSE;
+                                        break;
+                                    }
+                                    case SDLK_RETURN:
+                                    {
+                                        auto parsed_command_text = splitCommand();
+                                        Command parsed_command = parseCommand(parsed_command_text);
+                                        if (parsed_command.verb != ActionVerb::INVALID)
+                                        {
+                                            pushCommandToTextBuffer(std::move(parsed_command_text));
+                                            handleCommand(parsed_command);
+                                        }
+                                        command.clear();
+                                        break;
+                                    }
+                                    default:
+                                    {
+                                        break;
+                                    }
                                 }
-                                clearCommand();
-                                break;
                             }
-                            default:
+
+                            if(event.key.key == SDLK_BACKSPACE)
                             {
-                                if ((key >= 32 && key <= 126) || key == TextualKey::BACKSPACE)
-                                    updateCommand(static_cast<char>(key));
-                                break;
+                                if(!command.empty())
+                                    command.pop_back();
                             }
                         }
+                        break;
                     }
                 }
+                if(event.type == SDL_EVENT_QUIT)
+                    game_state = GameState::QUIT;
             }
         }
 
-        void newGame() noexcept
+        void newGame()
         {
-            player.reset();
-            history.clear();
+
         }
 
         void saveGame() const
         {
-            //WIP
+
         }
 
         void loadGame()
         {
-            history.clear();
+
         }
 
-        void makeSpaceHistory()
+        std::pair<std::string, std::string> splitCommand() const
         {
-            if(history.size() == HISTORY_LENGTH)
-                history.pop_front();
+            size_t pos = command.find(' ');
+            if(pos == std::string::npos)
+                return {"", ""};
+            std::string verb(command.data(), pos);
+            std::string obj(command.data() + pos + 1);
+            return {verb, obj};
         }
 
-        void pushHistory(std::string text)
+        Command parseCommand(std::pair<std::string_view, std::string_view> split_command) const
         {
-            while(text.size() > COMMAND_SCREEN_WIDTH)
+            auto it = action_map.find(split_command.first);
+            if(it == action_map.end())
+                return Command(INVALID, NO_RESOURCE, NO_OBJECT);
+            switch(it->second)
             {
-                makeSpaceHistory();
-                history.push_back(text.substr(0, COMMAND_SCREEN_WIDTH));
-                text.erase(0, COMMAND_SCREEN_WIDTH);
+                case MINE:
+                {
+                    auto it2 = ores_map.find(split_command.second);
+                    if(it2 != ores_map.end())
+                        return Command(it->second, it2->second, NO_OBJECT);
+                    return Command(INVALID, NO_RESOURCE, NO_OBJECT);
+                }
+                case VIEW:
+                {
+                    if(split_command.second == "inventory")
+                        return Command(it->second, NO_RESOURCE, INVENTORY);
+                    if(split_command.second == "progress")
+                        return Command(it->second, NO_RESOURCE, PROGRESS);
+                }
+
             }
-            makeSpaceHistory();
-            history.push_back(std::move(text));
+            return Command(INVALID, NO_RESOURCE, NO_OBJECT);
         }
 
         bool setPlayerTarget(ResourceName item)
@@ -258,6 +289,47 @@ class Game
             }
             player_target = nullptr;
             return false;
+        }
+
+        void handleCommand(Command parsed_command) noexcept
+        {
+            if(parsed_command.verb == MINE) //expand to skill type command using ||
+            {
+                if(parsed_command.target_resource != NO_RESOURCE) //if it is a skill type command, also check for valid target resource
+                    setPlayerTarget(parsed_command.target_resource);
+                // add a condition to check for valid target item for example in case of burn logs skills can also be trained like this
+                // later expand with if(player_target_resource || player_target_item) to handle both resource and item targets
+                if(player_target)
+                {
+                    Skills skill = action_to_skill(parsed_command.verb);
+                    if(!player.hasEnoughSkillLevel(skill, player_target->resource_min_level))
+                    {
+                        pushTextToTextBuffer({"You", "do", "not", "have", "enough", std::string(skill_to_verbose_l(skill)), "level!"},
+                                            {WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, WHITE});
+                        return;
+                    }
+                    player.startAction(skill_to_playerstate(skill));
+                }
+            }
+            else
+            {
+                switch(parsed_command.verb)
+                {
+                    case VIEW:
+                    {
+                        switch(parsed_command.verb_object)
+                        {
+                            case INVENTORY:
+                                ui_state = UIState::UI_INVENTORY;
+                                break;
+                            case PROGRESS:
+                                ui_state = UIState::UI_PROGRESS;
+                                break;
+                        }
+                        break;
+                    }
+                }
+            }
         }
 
         std::vector<DropResult> extractResource() 
@@ -293,9 +365,11 @@ class Game
                     {
                         if(player.isInventoryFull())
                         {
-                            pushHistory("Your inventory is full!");
+                            pushTextToTextBuffer({"Your", "inventory", "is", "full!"}, {WHITE, WHITE, WHITE, WHITE});
                             player_target = nullptr;
                             player.startAction(NONE);
+                            if(ui_state == UIState::UI_PROGRESS)
+                                ui_state = UIState::BLANK;
                         }
                         return;
                     }
@@ -306,14 +380,23 @@ class Game
                             switch(action)
                             {
                                 case MINING_STATE:
-                                    pushHistory(std::string("You mined a ") + drop[i].rarity_color + std::string(objects_map_inverse(drop[i].obj_name)) + RESET + ".");
+                                    pushTextToTextBuffer(
+                                        {"You", "mined", "a", std::string(objects_map_inverse(drop[i].obj_name)) + "."}, 
+                                        {WHITE, WHITE, WHITE, drop[i].rarity_color}
+                                    );
                                     break;
                             }
-                            std::string skill_str = std::string(skill_to_verbose(skill));
-                            pushHistory("You gained " + std::to_string(drop[i].exp) + " " + skill_str + " experience.");
+                            std::string skill_str = std::string(skill_to_verbose_l(skill));
+                            pushTextToTextBuffer(
+                                        {"You", "gained", std::to_string(drop[i].exp), skill_str, "experience."},
+                                        {WHITE, WHITE, WHITE, WHITE, WHITE}
+                                    );
                             if(player.gainExperience(skill, drop[i].exp))
-                                pushHistory("Congratulations! You have gained 1 " + skill_str + " level. Your " + skill_str + " level is now "
-                                + std::to_string(player.getLevel(skill)) + ".");
+                                pushTextToTextBuffer(
+                                    {"Congratulations!", "You", "have", "gained", "1", skill_str, "level.", "Your", skill_str, "level", "is", 
+                                        "now",std::to_string(player.getLevel(skill)) + "."},
+                                    std::vector<SDL_Color>(13, WHITE)
+                                );
                         }
                     }
                 }
@@ -335,158 +418,235 @@ class Game
             }
         }
 
-        void hideCursor() const noexcept
+        size_t getTextLen(const std::string& text) const
         {
-            std::cout<<"\x1b[?25l";
+            int w, h;
+            TTF_GetStringSize(font, text.c_str(), text.size(), &w, &h);
+            return static_cast<size_t>(w);
         }
 
-        void showCursor() const noexcept
+        void makeSpaceTextBuffer()
         {
-            std::cout<<"\x1b[?25h";
-        }
-
-        void clearCommand() noexcept
-        {
-            command = "";
-        }
-
-        void updateCommand(char x)
-        {
-            if(x != '\b')
+            if(text_buffer.size() * static_cast<size_t>(FONT_SIZE) == HLINE_OFFSET)
             {
-                if(isprint(x) && command.size() < COMMAND_SCREEN_WIDTH)
-                    command.push_back(x);
+                text_buffer.pop_front();
+                for (auto& line : text_buffer)
+                    for (auto& word : line)
+                        word.pos_y -= FONT_SIZE;
             }
-            else if(command.size() > 0)
-                command.pop_back();
         }
 
-        std::pair<ActionVerb, ResourceName> parseCommand() const noexcept
+        void pushCommandToTextBuffer(std::pair<std::string, std::string> command)
         {
-            size_t pos = command.find(' ');
-            if(pos == std::string::npos)
-                return {NO_ACTION, NO_RESOURCE};
-            std::string_view verb(command.data(), pos);
-            std::string_view obj(command.data() + pos + 1);
-            auto it = action_map.find(verb);
-            if(it == action_map.end())
-                return {NO_ACTION, NO_RESOURCE};
-            switch(it->second)
+            makeSpaceTextBuffer();
+            size_t w1 = getTextLen(command.first);
+            size_t w2 = getTextLen(command.second);
+            float x = 0.0f;
+            float y = static_cast<float>(text_buffer.size()) * FONT_SIZE;
+            float x2 = static_cast<float>(w1 + getTextLen(" "));
+            auto& line = text_buffer.emplace_back();
+            line.emplace_back(std::move(command.first), WHITE, x, y, w1);
+            line.emplace_back(std::move(command.second), WHITE, x2, y, w2);
+        }
+
+        void pushTextToTextBuffer(const std::vector<std::string>& words, const std::vector<SDL_Color>& colors)
+        {
+            makeSpaceTextBuffer();
+            text_buffer.emplace_back();
+            const size_t space_size = getTextLen(" ");
+            size_t buffer_counter = 0;
+            for (size_t i = 0; i < words.size(); i++)
             {
-                case MINE:
+                size_t w = getTextLen(words[i]);
+                if(buffer_counter + w <= VLINE_OFFSET)
                 {
-                    auto it2 = ores_map.find(obj);
-                    if(it2 != ores_map.end())
-                        return {it->second, it2->second};
-                    return {NO_ACTION, NO_RESOURCE};
-                    break;
+                    float x = static_cast<float>(buffer_counter);
+                    float y = static_cast<float>(text_buffer.size() - 1) * FONT_SIZE;
+                    text_buffer.back().emplace_back(words[i], colors[i], x, y, w);
+                    buffer_counter += w + space_size;
+                }
+                else
+                {
+                    makeSpaceTextBuffer();
+                    text_buffer.emplace_back();
+                    buffer_counter = 0;
+                    i--;
                 }
             }
-            return {NO_ACTION, NO_RESOURCE};
         }
 
-        void handleCommand(std::pair<ActionVerb, ResourceName> parsed_command) noexcept
+        void drawText(const std::string& text, const float& x, const float& y, size_t w, const SDL_Color& color = WHITE) const
         {
-            if(setPlayerTarget(parsed_command.second))
+            SDL_Surface* text_surface = TTF_RenderText_Blended(font, text.c_str(), text.size(), color);
+            SDL_Texture* text_texture = SDL_CreateTextureFromSurface(renderer, text_surface);
+            SDL_DestroySurface(text_surface);
+            SDL_FRect dst {x, y, static_cast<float>(w), FONT_SIZE};
+            SDL_RenderTexture(renderer, text_texture, nullptr, &dst);
+            SDL_DestroyTexture(text_texture);
+        }
+
+        void echoText() const
+        {
+            for(const std::vector<Word>& word_line : text_buffer)
+                for(const Word& word : word_line)
+                    drawText(word.text, word.pos_x, word.pos_y, word.width, word.color);
+            drawText(command, 0.0f, static_cast<float>(HLINE_OFFSET), getTextLen(command));
+        }
+
+        void drawCursor() const
+        {
+            if(cursor_visible)
             {
-                Skills skill = action_to_skill(parsed_command.first);
-                if(!player.hasEnoughSkillLevel(skill, player_target->resource_min_level))
-                {
-                    pushHistory("You do not have enough " + std::string(skill_to_verbose(skill)) + " level!");
-                    return;
-                }
-                player.startAction(skill_to_playerstate(skill));
+                SDL_FRect cursor_rect {static_cast<float>(getTextLen(command)), static_cast<float>(HLINE_OFFSET), 
+                    static_cast<float>(CURSOR_WIDTH), static_cast<float>(FONT_SIZE)};
+                SDL_SetRenderDrawColor(renderer, WHITE.r, WHITE.g, WHITE.b, WHITE.a);
+                SDL_RenderFillRect(renderer, &cursor_rect);
             }
         }
 
-        void echo()
+        void renderUI()
         {
-            size_t hsize = history.size();
-            if(hsize < HISTORY_LENGTH)
-            {
-                for(size_t i = 0; i < hsize; i++)
-                    frame_buffer[i] = history[i] + std::string(COMMAND_SCREEN_WIDTH - visible_length(history[i]), ' ') + "|";
-                for(size_t i = hsize; i < HISTORY_LENGTH; i++)
-                    frame_buffer[i] = std::string(COMMAND_SCREEN_WIDTH, ' ') + "|";
-            }
-            else
-                for(size_t i = 0; i < HISTORY_LENGTH; i++)
-                    frame_buffer[i] = history[i] + std::string(COMMAND_SCREEN_WIDTH - visible_length(history[i]), ' ') + "|";
-
-            frame_buffer[SCREEN_HEIGHT - 2].replace(0, COMMAND_SCREEN_WIDTH + 1, std::string(COMMAND_SCREEN_WIDTH, '_') + "|");
-            frame_buffer[SCREEN_HEIGHT - 1].replace(0, COMMAND_SCREEN_WIDTH + 1, command + std::string(COMMAND_SCREEN_WIDTH - command.size(), 
-            ' ') + "|");
-
-            if(player.getAction() == MINING_STATE)
+            if(ui_state == UIState::UI_PROGRESS && player.getAction() != NONE)
             {
                 Skills skill = playerstate_to_skill(player.getAction());
-                std::string_view skill_v = skill_to_verbose(skill);
-                frame_buffer[SCREEN_HEIGHT - 2].replace(COMMAND_SCREEN_WIDTH + 1, skill_v.size(), skill_v);
-                size_t prog = player.expProgress(skill);
-                frame_buffer[SCREEN_HEIGHT - 1].replace(COMMAND_SCREEN_WIDTH + 1, PROGRESSBAR_PARTITIONS + 1, std::string(prog, '.') +
-                std::string(PROGRESSBAR_PARTITIONS - prog, ' ') + "|");
+                std::string text = skill_to_verbose_u(skill) + " Lv." + std::to_string(player.getLevel(skill));
+                drawText(text, static_cast<float>(VLINE_OFFSET_RAW), static_cast<float>(HLINE_OFFSET - FONT_SIZE), 
+                        getTextLen(text));
+                size_t num_rects = std::min(player.expProgress(skill), PROGRESSBAR_PARTITIONS);
+                for(size_t i = 0; i < num_rects; i++)
+                {
+                    SDL_FRect progress_rect {static_cast<float>(VLINE_OFFSET_RAW + i * (PROGRESS_BAR_WIDTH + PROGRESSBAR_SPACING)), 
+                                            static_cast<float>(HLINE_OFFSET),
+                                            static_cast<float>(PROGRESS_BAR_WIDTH),
+                                            static_cast<float>(FONT_SIZE / 2.0f)};
+                    SDL_SetRenderDrawColor(renderer, WHITE.r, WHITE.g, WHITE.b, WHITE.a);
+                    SDL_RenderFillRect(renderer, &progress_rect);
+                }
+            }
+            else if(ui_state == UIState::UI_INVENTORY)
+            {
+                //WIP
             }
         }
 
         void renderFrame()
         {
-            hideCursor();
-            clearFrame();
+            SDL_SetRenderDrawColor(renderer, BLACK.r, BLACK.g, BLACK.b, BLACK.a);
+            SDL_RenderClear(renderer);
             switch(game_state)
             {
                 case GameState::MAIN:
                 {
-                    main_menu.renderMenu(frame_buffer);
+                    main_menu.renderMenu(renderer, font);
                     break;
                 }
                 case GameState::PAUSE:
                 {
-                    pause_menu.renderMenu(frame_buffer);
+                    pause_menu.renderMenu(renderer, font);
                     break;
                 }
                 case GameState::SAVE:
                 {
-                    save_menu.renderMenu(frame_buffer);
+                    save_menu.renderMenu(renderer, font);
                     break;
                 }
                 case GameState::RUNNING:
                 {
-                    echo();
+                    Uint64 now = SDL_GetTicks();
+                    if (now - last_cursor_toggle >= CURSOR_BLINK_TIME)
+                    {
+                        cursor_visible = !cursor_visible;
+                        last_cursor_toggle = now;
+                    }
+                    SDL_SetRenderDrawColor(renderer, WHITE.r, WHITE.g, WHITE.b, WHITE.a);
+                    SDL_RenderLine(renderer, 0, HLINE_OFFSET, VLINE_OFFSET_RAW, HLINE_OFFSET); //hline
+                    SDL_RenderLine(renderer, VLINE_OFFSET_RAW, 0, VLINE_OFFSET_RAW, SCREEN_HEIGHT - 1); //vline
+                    echoText();
+                    drawCursor();
+                    renderUI();
                     break;
                 }
+                default:
+                    break;
             }
-            std::cout<<"\x1b[H";
-            for(std::string_view row: frame_buffer)
-                std::cout<<row<<'\n';
-            std::cout<<"\x1b["<<static_cast<int>(SCREEN_HEIGHT)<<";"<<command.size() + 1<<"H";
-            if(game_state == GameState::RUNNING)
-                showCursor();
+            SDL_RenderPresent(renderer);
         }
 
-        void runGame()
+        int runGame()
         {
-            auto prev = high_clock::now();
-            auto accumulator = std::chrono::milliseconds(0);
+            if(!SDL_Init(SDL_INIT_VIDEO))
+            {
+                std::cerr<<"Failed to initialize SDL: "<<SDL_GetError()<<"\n";
+                return 1;
+            }
+
+            window = SDL_CreateWindow("Start", SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_RESIZABLE);
+            if(!window)
+            {
+                std::cerr<<"Failed to create window: "<<SDL_GetError()<< "\n";
+                SDL_Quit();
+                return 2;
+            }
+
+            renderer = SDL_CreateRenderer(window, nullptr);
+            if (!renderer) 
+            {
+                std::cerr << "Failed to create renderer: " << SDL_GetError() << "\n";
+                SDL_DestroyWindow(window);
+                SDL_Quit();
+                return 3;
+            }
+
+            if (!TTF_Init())
+            {
+                std::cerr << "Failed to initialize TTF: " << SDL_GetError() << "\n";
+                SDL_DestroyRenderer(renderer);
+                SDL_DestroyWindow(window);
+                SDL_Quit();
+                return 4;
+            }
+
+            font = TTF_OpenFont(FONT_PATH, FONT_SIZE);
+            if (!font) 
+            {
+                std::cerr << "Failed to open font: " << SDL_GetError() << "\n";
+                TTF_Quit();
+                SDL_DestroyRenderer(renderer);
+                SDL_DestroyWindow(window);
+                SDL_Quit();
+                return 5;
+            }
+
+            Uint64 last = SDL_GetTicks();
+            Uint64 accumulator = 0;
+
             while(game_state != GameState::QUIT)
             {
-                auto frameStart = high_clock::now();
-                accumulator += std::chrono::duration_cast<std::chrono::milliseconds>(frameStart - prev);
-                prev = frameStart;
+                Uint64 current = SDL_GetTicks();
+                Uint64 delta = current - last;
+                last = current;
+                accumulator += delta;
 
                 handleInput();
-                while(accumulator >= tick)
+                while(game_state == GameState::RUNNING && accumulator >= TICK)
                 {
-                    if(game_state == GameState::RUNNING) 
-                        updateState();
-                    accumulator -= tick;
+                    updateState();
+                    accumulator -= TICK;
                 }
+
                 renderFrame();
 
-                auto frameDuration = std::chrono::milliseconds(1000 / fps);
-                auto frameEnd = high_clock::now();
-                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameStart);
-                if(elapsed < frameDuration) std::this_thread::sleep_for(frameDuration - elapsed);
+                Uint64 frame_time_elapsed = SDL_GetTicks() - current;
+                if(frame_time_elapsed < frame_time)
+                    SDL_Delay(frame_time - frame_time_elapsed);
             }
+
+            TTF_CloseFont(font);
+            TTF_Quit();
+            SDL_DestroyRenderer(renderer);
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            return 0;
         }
 };
 

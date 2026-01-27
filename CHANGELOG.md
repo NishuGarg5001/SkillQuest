@@ -1,3 +1,7 @@
+#V 0.0380
+-Project shifted from terminal to SDL3
+-Updated README.md
+
 #V 0.0373
 -Combined a lot of maps together
 -Shifted most of the current game data into Resource class attributes (where it should actually belong)

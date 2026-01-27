@@ -5,39 +5,23 @@
 
 class Menu
 {
-    //invariants
-    //menu_size > 0
-    //index < menu_size --> this condition has to be maintained internally after constructor call
-    //menu_box_height = menu_size + 2
-    //2 < menu_box_height <= SCREEN_HEIGHT to accomodate at least 1 menu item
-    //4 < menu_box_width <= SCREEN_WIDTH to accomodate at least 1 char
-    //items[i].size() <= menu_box_width - 4 for all 0<=i<menu_size because menu item width shouldn't exceed menu box width
     size_t index;
     const std::vector<std::string> items;
     const size_t menu_size, menu_box_width, menu_box_height;
+    const float menu_pos_x, menu_pos_y;
+    const SDL_FRect menu_box;
 
     public:
-        explicit Menu(std::vector<std::string> items, size_t menu_box_width) : 
+        explicit Menu(std::vector<std::string> items, size_t menu_box_width, size_t menu_box_height) :
         index(0),
         items(std::move(items)),
         menu_size(this->items.size()),
         menu_box_width(menu_box_width),
-        menu_box_height(menu_size + 2)
-        {
-            if(this->items.empty())
-                throw std::invalid_argument("Menu cannot be empty");
-            if(menu_box_height > SCREEN_HEIGHT)
-                throw std::invalid_argument("Menu box height cannot be more than screen height");
-            if(menu_box_height < 3)
-                throw std::invalid_argument("Menu box height too small to accomodate any menu item");
-            if(this->menu_box_width > SCREEN_WIDTH)
-                throw std::invalid_argument("Menu box width cannot be more than screen width");
-            if(this->menu_box_width < 5)
-                throw std::invalid_argument("Menu box width too small to render any menu item's text");
-            for(uint8_t i = 0; i < menu_size; i++)
-                if(this->items[i].size() > this->menu_box_width - 4)
-                    throw std::invalid_argument("This menu item is bigger than menu box width");
-        }
+        menu_box_height(menu_box_height),
+        menu_pos_x(static_cast<float>((SCREEN_WIDTH - menu_box_width) / 2)),
+        menu_pos_y(static_cast<float>((SCREEN_HEIGHT - menu_box_height) / 2)),
+        menu_box{menu_pos_x, menu_pos_y, static_cast<float>(menu_box_width), static_cast<float>(menu_box_height)}
+        {}
 
         std::string_view currentItem() const noexcept
         {
@@ -56,33 +40,22 @@ class Menu
                 index++;
         }
 
-        void renderMenu(std::array<std::string, SCREEN_HEIGHT>& frame_buffer) const
+        void renderMenu(SDL_Renderer* renderer, TTF_Font* font) const
         {
-            const size_t x_pad = (SCREEN_WIDTH  - menu_box_width)  / 2;
-            const size_t y_pad = (SCREEN_HEIGHT - menu_box_height) / 2;
+            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+            SDL_RenderFillRect(renderer, &menu_box);
 
-            for (size_t row = 0; row < menu_box_height; row++)
+            for(size_t i=0; i<menu_size; i++)
             {
-                size_t i = y_pad + row;
-                if (row == 0 || row == menu_box_height - 1)
-                {
-                    frame_buffer[i] =
-                    std::string(x_pad, ' ') +
-                    std::string(menu_box_width, '-') +
-                    std::string(SCREEN_WIDTH - x_pad - menu_box_width, ' ');
-                }
-                else
-                {
-                    const size_t item_idx = row - 1;
-                    std::string q = (index == item_idx ? "->" : "") + items[item_idx];
-                    size_t content_width = menu_box_width - 2;
-                    frame_buffer[i] =
-                    std::string(x_pad, ' ') +
-                    "|" + q +
-                    std::string(content_width - q.size(), ' ') +
-                    "|" +
-                    std::string(SCREEN_WIDTH - x_pad - menu_box_width, ' ');
-                }
+                std::string text = (i == index) ? "->" + items[i] : items[i];
+                SDL_Surface* text_surface = TTF_RenderText_Blended(font, (text).c_str(), strlen(text.c_str()), WHITE);
+                SDL_Texture* text_texture = SDL_CreateTextureFromSurface(renderer, text_surface);
+                SDL_DestroySurface(text_surface);
+                int w, h;
+                TTF_GetStringSize(font, text.c_str(), strlen(text.c_str()), &w, &h);
+                SDL_FRect dst {menu_box.x + (menu_box.w - w) / 2.0f, menu_box.y + FONT_SIZE * i, static_cast<float>(w), static_cast<float>(h)};
+                SDL_RenderTexture(renderer, text_texture, nullptr, &dst);
+                SDL_DestroyTexture(text_texture);
             }
         }
 };

@@ -16,16 +16,17 @@ struct Resource
 {
     const ResourceName name;
     const std::vector<Object> objects;
-    const std::vector<uint8_t> object_levels; //minimum levels to extract that object
-    const uint8_t resource_min_level; //minimum level to use resource = min(object_levels)
-    const std::vector<uint32_t> exps;
-    const std::vector<uint16_t> drop_rates;
+    const std::vector<int> object_levels, exps, drop_rates; 
+    //minimum levels to extract that object
+    //exps gained from extracting that object
+    //drop rates for that object
+    const int resource_min_level; //minimum level to use resource = min(object_levels)
     const std::vector<Rarity> rarities;
-    const std::vector<const char*> rarity_colors;
+    const std::vector<SDL_Color> rarity_colors;
     const size_t len;
 
-    explicit Resource(ResourceName name, std::vector<Object> objects, std::vector<uint8_t> object_levels,
-    std::vector<uint32_t> exps, std::vector<uint16_t> drop_rates) 
+    explicit Resource(ResourceName name, std::vector<Object> objects, std::vector<int> object_levels,
+    std::vector<int> exps, std::vector<int> drop_rates) 
     noexcept :
     name(name),
     objects(std::move(objects)),
@@ -43,10 +44,10 @@ struct DropResult
 {
     const ObjectName obj_name;
     const Rarity rarity;
-    const char* rarity_color;
-    const uint32_t exp;
+    SDL_Color rarity_color;
+    const int exp;
 
-    explicit DropResult(ObjectName obj_name, Rarity rarity, const char* rarity_color, uint32_t exp) noexcept :
+    explicit DropResult(ObjectName obj_name, Rarity rarity, SDL_Color rarity_color, int exp) noexcept :
     obj_name(obj_name),
     rarity(rarity),
     rarity_color(rarity_color),

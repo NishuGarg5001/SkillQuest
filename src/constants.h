@@ -2,62 +2,56 @@
 #define CONSTANTS_H
 
 #include <iostream>
-#include <chrono>
-#include <unordered_map>
-#include <optional>
-#include <conio.h>
-#include <thread>
-#include <deque>
-#include <array>
 #include <vector>
-#include <string>
-#include <variant>
-#include <cstring>
+#include <deque>
+#include <unordered_map>
 #include <algorithm>
+#include <optional>
+#include <array>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
-constexpr size_t SCREEN_WIDTH  = 120;
-constexpr size_t SCREEN_HEIGHT = 29;
-constexpr size_t COMMAND_SCREEN_WIDTH = 80;
-constexpr size_t UI_SCREEN_WIDTH = SCREEN_WIDTH - (COMMAND_SCREEN_WIDTH + 1);
-constexpr size_t HISTORY_LENGTH = SCREEN_HEIGHT - 2;
-constexpr size_t INVENTORY_SIZE = 28;
-constexpr size_t MAIN_MENU_BOX_WIDTH = 13;
-constexpr size_t PAUSE_MENU_BOX_WIDTH = 21;
-constexpr size_t SAVE_MENU_BOX_WIDTH = 10;
+//screen dimensions
+constexpr size_t SCREEN_WIDTH  = 1366;
+constexpr size_t SCREEN_HEIGHT = 768;
+
+//font
+constexpr const char* FONT_PATH = "assets/VT323-Regular.ttf";
+constexpr float FONT_SIZE = 24.0f;
+
+//time constants
+constexpr Uint64 TICK = 600;
+constexpr Uint64 CURSOR_BLINK_TIME = 600;
+
+//menu dimensions
+constexpr size_t MAIN_MENU_BOX_WIDTH = 120;
+constexpr size_t MAIN_MENU_BOX_HEIGHT = static_cast<size_t>(FONT_SIZE * 3.0f + 0.2f * FONT_SIZE);
+constexpr size_t PAUSE_MENU_BOX_WIDTH = 205;
+constexpr size_t PAUSE_MENU_BOX_HEIGHT = static_cast<size_t>(FONT_SIZE * 3.0f + 0.2f * FONT_SIZE);
+constexpr size_t SAVE_MENU_BOX_WIDTH = 90;
+constexpr size_t SAVE_MENU_BOX_HEIGHT = static_cast<size_t>(FONT_SIZE * 3.0f + 0.2f * FONT_SIZE);
+
+//UI dimensions
+constexpr size_t HLINE_OFFSET = SCREEN_HEIGHT - static_cast<size_t>(FONT_SIZE);
+constexpr size_t VLINE_OFFSET_RAW = 1000;
+constexpr size_t NUM_LINES = HLINE_OFFSET / static_cast<size_t>(FONT_SIZE);
+constexpr size_t CURSOR_WIDTH = 8;
+constexpr size_t VLINE_OFFSET = VLINE_OFFSET_RAW - CURSOR_WIDTH;
 constexpr size_t PROGRESSBAR_PARTITIONS = 30;
-constexpr auto tick = std::chrono::milliseconds(600);
-constexpr const char* RESET = "\x1b[0m";
-constexpr const char* RED = "\x1b[31m";
-constexpr const char* GREEN = "\x1b[32m";
-constexpr const char* BROWN = "\x1b[33m";
-constexpr const char* YELLOW = "\x1b[93m";
-constexpr const char* BLUE = "\x1b[34m";
-constexpr const char* MAGENTA = "\x1b[35m";
-constexpr const char* CYAN = "\x1b[36m";
-constexpr const char* WHITE = "\x1b[37m";
-constexpr const char* ORANGE = "\x1b[38;5;208m";
-using high_clock = std::chrono::high_resolution_clock;
+constexpr size_t PROGRESSBAR_SPACING = 2;
+constexpr size_t PROGRESS_BAR_WIDTH = (SCREEN_WIDTH - VLINE_OFFSET_RAW - (PROGRESSBAR_PARTITIONS - 1) * PROGRESSBAR_SPACING) / 
+                                        PROGRESSBAR_PARTITIONS;
 
-namespace CommandKey
-{
-    enum : uint8_t
-    {
-        RAW1 = 0,
-        RAW2 = 224,
-        UP = 72,
-        DOWN = 80,
-        ENTER = 13,
-        ESC = 27
-    };
-};
+//Game constants
+constexpr size_t INVENTORY_SIZE = 28;
 
-namespace TextualKey
-{
-    enum : uint8_t
-    {
-        BACKSPACE = 8
-    };
-};
+//Colors
+constexpr SDL_Color WHITE = {255, 255, 255, 255};
+constexpr SDL_Color BLACK = {0, 0, 0, 255};
+constexpr SDL_Color BROWN = {165, 42, 42, 255};
+constexpr SDL_Color YELLOW = {255, 255, 0, 255};
+constexpr SDL_Color ORANGE = {255, 165, 0, 255};
+constexpr SDL_Color RED = {255, 0, 0, 255};
 
 enum class Rarity
 {
@@ -68,7 +62,7 @@ enum class Rarity
     VERY_RARE
 };
 
-enum class GameState : uint8_t
+enum class GameState : int
 {
     QUIT,
     RUNNING,
@@ -77,22 +71,35 @@ enum class GameState : uint8_t
     SAVE
 };
 
-enum class PlayerState : uint8_t
+enum class UIState : int
+{
+    BLANK,
+    UI_INVENTORY,
+    UI_PROGRESS
+};
+
+enum class PlayerState : int
 {
     NONE,
-    INVENTORY,
     MINING_STATE
 };
 
-enum class ActionVerb : uint8_t
+enum class ActionVerb : int
 {
-    NO_ACTION,
+    INVALID,
     MINE,
     VIEW,
     USE
 };
 
-enum class ResourceName : uint8_t
+enum class VerbObject : int
+{
+    NO_OBJECT,
+    INVENTORY,
+    PROGRESS
+};
+
+enum class ResourceName : int
 {
     NO_RESOURCE,
     COPPER,
@@ -101,7 +108,7 @@ enum class ResourceName : uint8_t
     GOLD
 };
 
-enum class ObjectName : uint8_t
+enum class ObjectName : int
 {
     NO_ITEM,
     COPPER_ORE,
@@ -110,7 +117,7 @@ enum class ObjectName : uint8_t
     GOLD_ORE
 };
 
-enum class Skills : uint8_t
+enum class Skills : int
 {
     NO_SKILL,
     HEALTH,
@@ -119,6 +126,7 @@ enum class Skills : uint8_t
 
 using enum Rarity;
 using enum ActionVerb;
+using enum VerbObject;
 using enum PlayerState;
 using enum ResourceName;
 using enum ObjectName;
@@ -126,7 +134,8 @@ using enum Skills;
 
 const std::unordered_map<std::string_view, ActionVerb> action_map = 
 {
-    {"mine", MINE}
+    {"mine", MINE},
+    {"view", VIEW}
 };
 
 const std::unordered_map<std::string_view, ResourceName> ores_map = 
@@ -176,7 +185,17 @@ Skills playerstate_to_skill(PlayerState player_state)
     }
 }
 
-std::string_view skill_to_verbose(Skills skill)
+std::string skill_to_verbose_u(Skills skill)
+{
+    switch(skill)
+    {
+        case HEALTH: return "Health";
+        case MINING: return "Mining";
+        default: return "null";
+    }
+}
+
+std::string skill_to_verbose_l(Skills skill)
 {
     switch(skill)
     {
@@ -186,7 +205,7 @@ std::string_view skill_to_verbose(Skills skill)
     }
 }
 
-uint32_t level_exp_mapping(uint8_t level)
+int level_exp_mapping(int level)
 {
     switch(level)
     {
@@ -205,13 +224,13 @@ uint32_t level_exp_mapping(uint8_t level)
     }
 }
 
-std::vector<Rarity> drop_rate_to_rarity(const std::vector<uint16_t>& drop_rates)
+std::vector<Rarity> drop_rate_to_rarity(const std::vector<int>& drop_rates)
 {
     std::vector<Rarity> res{};
     res.reserve(drop_rates.size());
     for(size_t i=0; i<drop_rates.size(); i++)
     {
-        uint16_t drop_rate = drop_rates[i];
+        int drop_rate = drop_rates[i];
         if(drop_rate > 500)
             res.push_back(VERY_RARE);
         else if(drop_rate > 125)
@@ -226,9 +245,9 @@ std::vector<Rarity> drop_rate_to_rarity(const std::vector<uint16_t>& drop_rates)
     return res;
 }
 
-std::vector<const char*> rarity_to_color(const std::vector<Rarity>& rarity)
+std::vector<SDL_Color> rarity_to_color(const std::vector<Rarity>& rarity)
 {
-    std::vector<const char*> res{};
+    std::vector<SDL_Color> res{};
     res.reserve(rarity.size());
     for(size_t i=0; i<rarity.size(); i++)
     {
