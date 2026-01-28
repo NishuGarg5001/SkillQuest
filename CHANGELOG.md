@@ -1,8 +1,11 @@
-#V 0.0380
+#V 0.0.381
+-Added scalable UI for inventory supporting 8x8 px, 16x16 px, 32x32 px and 64x64 px items
+
+#V 0.0.380
 -Project shifted from terminal to SDL3
 -Updated README.md
 
-#V 0.0373
+#V 0.0.373
 -Combined a lot of maps together
 -Shifted most of the current game data into Resource class attributes (where it should actually belong)
 -Expanded Resource class to store a vector of objects instead of just one object

@@ -32,8 +32,15 @@ constexpr size_t SAVE_MENU_BOX_WIDTH = 90;
 constexpr size_t SAVE_MENU_BOX_HEIGHT = static_cast<size_t>(FONT_SIZE * 3.0f + 0.2f * FONT_SIZE);
 
 //UI dimensions
+constexpr size_t INVENTORY_SCALE = 4; //Should take values [1, 2, 4, 8, 16]
+constexpr size_t INVENTORY_BOX_WIDTH = 8 * INVENTORY_SCALE;
+constexpr size_t INVENTORY_BOX_HEIGHT = 8 * INVENTORY_SCALE;
+constexpr size_t INVENTORY_BOXES_PER_ROW = 48 / INVENTORY_SCALE;
+constexpr size_t INVENTORY_BOXES_PER_COL = 32 / INVENTORY_SCALE;
+constexpr size_t INVENTORY_LINE_WIDTH = 3;
+constexpr size_t INVENTORY_END = INVENTORY_BOX_HEIGHT * INVENTORY_BOXES_PER_COL + INVENTORY_LINE_WIDTH * (INVENTORY_BOXES_PER_COL + 1);
 constexpr size_t HLINE_OFFSET = SCREEN_HEIGHT - static_cast<size_t>(FONT_SIZE);
-constexpr size_t VLINE_OFFSET_RAW = 1000;
+constexpr size_t VLINE_OFFSET_RAW = SCREEN_WIDTH - (INVENTORY_BOXES_PER_ROW + 1) * INVENTORY_LINE_WIDTH - (INVENTORY_BOX_WIDTH * INVENTORY_BOXES_PER_ROW) + 1;
 constexpr size_t NUM_LINES = HLINE_OFFSET / static_cast<size_t>(FONT_SIZE);
 constexpr size_t CURSOR_WIDTH = 8;
 constexpr size_t VLINE_OFFSET = VLINE_OFFSET_RAW - CURSOR_WIDTH;
@@ -43,7 +50,7 @@ constexpr size_t PROGRESS_BAR_WIDTH = (SCREEN_WIDTH - VLINE_OFFSET_RAW - (PROGRE
                                         PROGRESSBAR_PARTITIONS;
 
 //Game constants
-constexpr size_t INVENTORY_SIZE = 28;
+constexpr size_t INVENTORY_SIZE = INVENTORY_BOXES_PER_ROW * INVENTORY_BOXES_PER_COL;
 
 //Colors
 constexpr SDL_Color WHITE = {255, 255, 255, 255};

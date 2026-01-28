@@ -525,7 +525,26 @@ class Game
             }
             else if(ui_state == UIState::UI_INVENTORY)
             {
-                //WIP
+                //horizontal lines
+                for(size_t i = 0; i < INVENTORY_BOXES_PER_COL + 1; i++)
+                {
+                    float y = static_cast<float>(i * INVENTORY_BOX_HEIGHT + i * INVENTORY_LINE_WIDTH);
+                    for(size_t w = 0; w < INVENTORY_LINE_WIDTH; w++)
+                    {
+                        float wf = static_cast<float>(w);
+                        SDL_RenderLine(renderer, static_cast<float>(VLINE_OFFSET_RAW), y + wf, static_cast<float>(SCREEN_WIDTH - 1), y + wf);
+                    }
+                }
+                //vertical lines
+                for(size_t i = 0; i < INVENTORY_BOXES_PER_ROW + 1; i++)
+                {
+                    float x = static_cast<float>((VLINE_OFFSET_RAW - 2) + i * INVENTORY_BOX_WIDTH + i * INVENTORY_LINE_WIDTH + 1);
+                    for(size_t w = 0; w < INVENTORY_LINE_WIDTH; w++)
+                    {
+                        float wf = static_cast<float>(w);
+                        SDL_RenderLine(renderer, x + wf, 0.0f, x + wf, static_cast<float>(INVENTORY_END - 1));
+                    }
+                }
             }
         }
 
@@ -559,8 +578,8 @@ class Game
                         last_cursor_toggle = now;
                     }
                     SDL_SetRenderDrawColor(renderer, WHITE.r, WHITE.g, WHITE.b, WHITE.a);
-                    SDL_RenderLine(renderer, 0, HLINE_OFFSET, VLINE_OFFSET_RAW, HLINE_OFFSET); //hline
-                    SDL_RenderLine(renderer, VLINE_OFFSET_RAW, 0, VLINE_OFFSET_RAW, SCREEN_HEIGHT - 1); //vline
+                    SDL_RenderLine(renderer, 0, HLINE_OFFSET - 1, VLINE_OFFSET_RAW - 1, HLINE_OFFSET - 1); //hline
+                    SDL_RenderLine(renderer, VLINE_OFFSET_RAW - 1, 0, VLINE_OFFSET_RAW - 1, SCREEN_HEIGHT - 1); //vline
                     echoText();
                     drawCursor();
                     renderUI();
