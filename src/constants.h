@@ -10,14 +10,21 @@
 #include <array>
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
+#include <SDL3_image/SDL_image.h>
+
+
 
 //screen dimensions
 constexpr size_t SCREEN_WIDTH  = 1366;
 constexpr size_t SCREEN_HEIGHT = 768;
+constexpr size_t TEXT_LINES = 32; // includes 1 line for commands
 
 //font
 constexpr const char* FONT_PATH = "assets/VT323-Regular.ttf";
-constexpr float FONT_SIZE = 24.0f;
+constexpr float FONT_SIZE = static_cast<float>(SCREEN_HEIGHT/TEXT_LINES);
+
+//assets
+constexpr std::string ASSET_SPRITE_PATH = "assets/sprites/";
 
 //time constants
 constexpr Uint64 TICK = 600;
@@ -32,12 +39,12 @@ constexpr size_t SAVE_MENU_BOX_WIDTH = 90;
 constexpr size_t SAVE_MENU_BOX_HEIGHT = static_cast<size_t>(FONT_SIZE * 3.0f + 0.2f * FONT_SIZE);
 
 //UI dimensions
-constexpr size_t INVENTORY_SCALE = 4; //Should take values [1, 2, 4, 8, 16]
+constexpr size_t INVENTORY_SCALE = 4; //Should take values [1, 2, 4, 8, 16] determines how much inventory player has
 constexpr size_t INVENTORY_BOX_WIDTH = 8 * INVENTORY_SCALE;
 constexpr size_t INVENTORY_BOX_HEIGHT = 8 * INVENTORY_SCALE;
-constexpr size_t INVENTORY_BOXES_PER_ROW = 48 / INVENTORY_SCALE;
-constexpr size_t INVENTORY_BOXES_PER_COL = 32 / INVENTORY_SCALE;
-constexpr size_t INVENTORY_LINE_WIDTH = 3;
+constexpr size_t INVENTORY_BOXES_PER_ROW = 36 / INVENTORY_SCALE; //48
+constexpr size_t INVENTORY_BOXES_PER_COL = 24 / INVENTORY_SCALE; //32
+constexpr size_t INVENTORY_LINE_WIDTH = 4; // LINE WIDTH SHOULD BE > 1
 constexpr size_t INVENTORY_END = INVENTORY_BOX_HEIGHT * INVENTORY_BOXES_PER_COL + INVENTORY_LINE_WIDTH * (INVENTORY_BOXES_PER_COL + 1);
 constexpr size_t HLINE_OFFSET = SCREEN_HEIGHT - static_cast<size_t>(FONT_SIZE);
 constexpr size_t VLINE_OFFSET_RAW = SCREEN_WIDTH - (INVENTORY_BOXES_PER_ROW + 1) * INVENTORY_LINE_WIDTH - (INVENTORY_BOX_WIDTH * INVENTORY_BOXES_PER_ROW) + 1;
@@ -51,6 +58,7 @@ constexpr size_t PROGRESS_BAR_WIDTH = (SCREEN_WIDTH - VLINE_OFFSET_RAW - (PROGRE
 
 //Game constants
 constexpr size_t INVENTORY_SIZE = INVENTORY_BOXES_PER_ROW * INVENTORY_BOXES_PER_COL;
+constexpr size_t NUM_TOOLS = 1;
 
 //Colors
 constexpr SDL_Color WHITE = {255, 255, 255, 255};
@@ -59,6 +67,10 @@ constexpr SDL_Color BROWN = {165, 42, 42, 255};
 constexpr SDL_Color YELLOW = {255, 255, 0, 255};
 constexpr SDL_Color ORANGE = {255, 165, 0, 255};
 constexpr SDL_Color RED = {255, 0, 0, 255};
+//constexpr SDL_Color INVENTORY_BOX_COLOR = {176, 117, 61, 255};
+//constexpr SDL_Color INVENTORY_LINE_COLOR = {133, 90, 51, 255};
+constexpr SDL_Color INVENTORY_BOX_COLOR = {187, 117, 71, 255};
+constexpr SDL_Color INVENTORY_LINE_COLOR = {91, 49, 56, 255};
 
 enum class Rarity
 {
@@ -82,18 +94,26 @@ enum class UIState : int
 {
     BLANK,
     UI_INVENTORY,
+};
+
+enum class UIState2 : int
+{
+    BLANK,
+    UI_TOOLBELT,
     UI_PROGRESS
 };
 
 enum class PlayerState : int
 {
     NONE,
+    FORAGING_STATE,
     MINING_STATE
 };
 
 enum class ActionVerb : int
 {
     INVALID,
+    FORAGE,
     MINE,
     VIEW,
     USE
@@ -109,6 +129,7 @@ enum class VerbObject : int
 enum class ResourceName : int
 {
     NO_RESOURCE,
+    GROUND,
     COPPER,
     TIN,
     IRON,
@@ -118,16 +139,20 @@ enum class ResourceName : int
 enum class ObjectName : int
 {
     NO_ITEM,
+    STONE,
+    STICK,
     COPPER_ORE,
     TIN_ORE,
     IRON_ORE,
-    GOLD_ORE
+    GOLD_ORE,
+    STONE_PICKAXE
 };
 
 enum class Skills : int
 {
     NO_SKILL,
     HEALTH,
+    FORAGING,
     MINING
 };
 
@@ -140,23 +165,27 @@ using enum ObjectName;
 using enum Skills;
 
 const std::unordered_map<std::string_view, ActionVerb> action_map = 
-{
+{   
+    //{"forage", FORAGE},
     {"mine", MINE},
     {"view", VIEW}
 };
 
 const std::unordered_map<std::string_view, ResourceName> ores_map = 
 {
+    {"ground", GROUND},
     {"copper", COPPER},
     {"tin", TIN},
     {"iron", IRON},
     {"gold", GOLD}
 };
 
-std::string_view objects_map_inverse(ObjectName obj)
+std::string objects_map_inverse(ObjectName obj)
 {
     switch(obj)
     {
+        case STONE: return "stone";
+        case STICK: return "stick";
         case COPPER_ORE: return "copper ore";
         case TIN_ORE: return "tin ore";
         case IRON_ORE: return "iron ore";
@@ -169,6 +198,7 @@ Skills action_to_skill(ActionVerb action)
 {
     switch(action)
     {
+        case ActionVerb::FORAGE: return FORAGING;
         case ActionVerb::MINE: return MINING;
         default: return NO_SKILL;
     }
@@ -178,6 +208,7 @@ PlayerState skill_to_playerstate(Skills skill)
 {
     switch(skill)
     {
+        case FORAGING: return FORAGING_STATE;
         case MINING: return MINING_STATE;
         default: return NONE;
     }
@@ -187,6 +218,7 @@ Skills playerstate_to_skill(PlayerState player_state)
 {
     switch(player_state)
     {
+        case FORAGING_STATE: return FORAGING;
         case MINING_STATE: return MINING;
         default: return NO_SKILL;
     }
@@ -197,6 +229,7 @@ std::string skill_to_verbose_u(Skills skill)
     switch(skill)
     {
         case HEALTH: return "Health";
+        case FORAGING: return "Foraging";
         case MINING: return "Mining";
         default: return "null";
     }
@@ -207,6 +240,7 @@ std::string skill_to_verbose_l(Skills skill)
     switch(skill)
     {
         case HEALTH: return "health";
+        case FORAGING: return "foraging";
         case MINING: return "mining";
         default: return "null";
     }

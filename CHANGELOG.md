@@ -1,3 +1,11 @@
+#V 0.0.3815
+-Added graphics to inventory
+-Added sprite for copper ore
+-Added support to view inventory and mining progress simultaneously
+-Set font size to scale with SCREEN_HEIGHT
+-Updated README.md to include SDL3_image
+-Todo: more sprites, Foraging skill and toolbelt
+
 #V 0.0.381
 -Added scalable UI for inventory supporting 8x8 px, 16x16 px, 32x32 px and 64x64 px items
 

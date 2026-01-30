@@ -48,17 +48,15 @@ class Game
     std::string command = "";
     GameState game_state = GameState::MAIN;
     UIState ui_state = UIState::BLANK;
+    UIState2 ui_state2 = UIState2::BLANK;
     Player player = Player();
     Menu main_menu = Menu({"New Game", "Load Game", "Quit"}, MAIN_MENU_BOX_WIDTH, MAIN_MENU_BOX_HEIGHT);
     Menu pause_menu =  Menu({"Continue", "Save Game", "Quit to Main Menu"}, PAUSE_MENU_BOX_WIDTH, PAUSE_MENU_BOX_HEIGHT);
     Menu save_menu = Menu({"Slot 1", "Slot 2", "Slot 3"}, SAVE_MENU_BOX_WIDTH, SAVE_MENU_BOX_HEIGHT);
     const Resource* player_target = nullptr;
-    const std::array<Resource, 4> game_resources =
+    const std::array<Resource, 1> game_resources =
     {
-        resource_list.at(COPPER),
-        resource_list.at(TIN),
-        resource_list.at(IRON),
-        resource_list.at(GOLD)
+        resource_list.at(COPPER)
     };
 
     public:
@@ -226,9 +224,15 @@ class Game
             }
         }
 
-        void newGame()
+        void newGame() noexcept
         {
-
+            SDL_RenderClear(renderer);
+            text_buffer.clear();
+            command.clear();
+            ui_state = UIState::BLANK;
+            ui_state2 = UIState2::BLANK;
+            player.reset();
+            player_target = nullptr;
         }
 
         void saveGame() const
@@ -291,7 +295,7 @@ class Game
             return false;
         }
 
-        void handleCommand(Command parsed_command) noexcept
+        void handleCommand(Command parsed_command)
         {
             if(parsed_command.verb == MINE) //expand to skill type command using ||
             {
@@ -323,7 +327,7 @@ class Game
                                 ui_state = UIState::UI_INVENTORY;
                                 break;
                             case PROGRESS:
-                                ui_state = UIState::UI_PROGRESS;
+                                ui_state2 = UIState2::UI_PROGRESS;
                                 break;
                         }
                         break;
@@ -368,8 +372,10 @@ class Game
                             pushTextToTextBuffer({"Your", "inventory", "is", "full!"}, {WHITE, WHITE, WHITE, WHITE});
                             player_target = nullptr;
                             player.startAction(NONE);
-                            if(ui_state == UIState::UI_PROGRESS)
+                            if(ui_state != UIState::BLANK)
                                 ui_state = UIState::BLANK;
+                            if(ui_state2 != UIState2::BLANK)
+                                ui_state2 = UIState2::BLANK;
                         }
                         return;
                     }
@@ -418,9 +424,10 @@ class Game
             }
         }
 
-        size_t getTextLen(const std::string& text) const
+        size_t getTextLen(const std::string& text) const noexcept
         {
             int w, h;
+            w = h = 0;
             TTF_GetStringSize(font, text.c_str(), text.size(), &w, &h);
             return static_cast<size_t>(w);
         }
@@ -506,7 +513,7 @@ class Game
 
         void renderUI()
         {
-            if(ui_state == UIState::UI_PROGRESS && player.getAction() != NONE)
+            if(ui_state2 == UIState2::UI_PROGRESS && player.getAction() != NONE)
             {
                 Skills skill = playerstate_to_skill(player.getAction());
                 std::string text = skill_to_verbose_u(skill) + " Lv." + std::to_string(player.getLevel(skill));
@@ -523,8 +530,9 @@ class Game
                     SDL_RenderFillRect(renderer, &progress_rect);
                 }
             }
-            else if(ui_state == UIState::UI_INVENTORY)
+            if(ui_state == UIState::UI_INVENTORY)
             {
+                SDL_SetRenderDrawColor(renderer, INVENTORY_LINE_COLOR.r, INVENTORY_LINE_COLOR.g, INVENTORY_LINE_COLOR.b, INVENTORY_LINE_COLOR.a);
                 //horizontal lines
                 for(size_t i = 0; i < INVENTORY_BOXES_PER_COL + 1; i++)
                 {
@@ -541,8 +549,36 @@ class Game
                     float x = static_cast<float>((VLINE_OFFSET_RAW - 2) + i * INVENTORY_BOX_WIDTH + i * INVENTORY_LINE_WIDTH + 1);
                     for(size_t w = 0; w < INVENTORY_LINE_WIDTH; w++)
                     {
-                        float wf = static_cast<float>(w);
-                        SDL_RenderLine(renderer, x + wf, 0.0f, x + wf, static_cast<float>(INVENTORY_END - 1));
+                        if(!(i == 0 && w == 0))
+                        {
+                            float wf = static_cast<float>(w);
+                            SDL_RenderLine(renderer, x + wf, 0.0f, x + wf, static_cast<float>(INVENTORY_END - 1));
+                        }
+                    }
+                }
+                //inventory boxes
+                SDL_SetRenderDrawColor(renderer, INVENTORY_BOX_COLOR.r, INVENTORY_BOX_COLOR.g, INVENTORY_BOX_COLOR.b, INVENTORY_BOX_COLOR.a);
+                auto inventory = player.getInventory();
+                for (size_t i = 0; i < INVENTORY_SIZE; i++)
+                {
+                    size_t row = i / INVENTORY_BOXES_PER_ROW;
+                    size_t col = i % INVENTORY_BOXES_PER_ROW;
+                    float x = static_cast<float>((VLINE_OFFSET_RAW - 1) + col * (INVENTORY_LINE_WIDTH + INVENTORY_BOX_WIDTH) + INVENTORY_LINE_WIDTH);
+                    float y = static_cast<float>(row * (INVENTORY_LINE_WIDTH + INVENTORY_BOX_HEIGHT) + INVENTORY_LINE_WIDTH);
+                    SDL_FRect dst = {x, y, static_cast<float>(INVENTORY_BOX_WIDTH), static_cast<float>(INVENTORY_BOX_HEIGHT)};
+                    SDL_RenderFillRect(renderer, &dst);
+                    if(inventory[i].has_value())
+                    {
+                        SDL_Texture* tex = IMG_LoadTexture(renderer, inventory[i]->path.c_str());
+                        if(!tex)
+                        {
+                            std::cerr<<"Failed to create window: "<<SDL_GetError()<< "\n";
+                            game_state = GameState::QUIT;
+                            break;
+                        }
+                        
+                        SDL_RenderTexture(renderer, tex, nullptr, &dst);
+                        SDL_DestroyTexture(tex);
                     }
                 }
             }
