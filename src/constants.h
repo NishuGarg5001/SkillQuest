@@ -59,6 +59,16 @@ constexpr size_t PROGRESS_BAR_WIDTH = (SCREEN_WIDTH - VLINE_OFFSET_RAW - (PROGRE
 //Game constants
 constexpr size_t INVENTORY_SIZE = INVENTORY_BOXES_PER_ROW * INVENTORY_BOXES_PER_COL;
 constexpr size_t NUM_TOOLS = 1;
+constexpr std::string invalid_ui_state = "";
+constexpr std::string invalid_target = "";
+constexpr std::string invalid_action = "";
+const std::array<std::string, 3> valid_actions = {"mine", "search", "view"};
+const std::array<std::string, 2> valid_forage_sources = {"ground"};
+const std::array<std::string, 4> valid_mining_sources = {"copper", "tin", "iron", "gold"};
+const std::array<std::string, 3> skills_list = {"health", "foraging", "mining"};
+const std::array<std::string, 1> valid_ui_states = {"inventory"};
+const std::array<std::string, 1> valid_ui_states2 = {"progress"};
+const std::array<int, 3> starting_levels = {10, 1, 1};
 
 //Colors
 constexpr SDL_Color WHITE = {255, 255, 255, 255};
@@ -67,8 +77,6 @@ constexpr SDL_Color BROWN = {165, 42, 42, 255};
 constexpr SDL_Color YELLOW = {255, 255, 0, 255};
 constexpr SDL_Color ORANGE = {255, 165, 0, 255};
 constexpr SDL_Color RED = {255, 0, 0, 255};
-//constexpr SDL_Color INVENTORY_BOX_COLOR = {176, 117, 61, 255};
-//constexpr SDL_Color INVENTORY_LINE_COLOR = {133, 90, 51, 255};
 constexpr SDL_Color INVENTORY_BOX_COLOR = {187, 117, 71, 255};
 constexpr SDL_Color INVENTORY_LINE_COLOR = {91, 49, 56, 255};
 
@@ -90,160 +98,15 @@ enum class GameState : int
     SAVE
 };
 
-enum class UIState : int
-{
-    BLANK,
-    UI_INVENTORY,
-};
-
-enum class UIState2 : int
-{
-    BLANK,
-    UI_TOOLBELT,
-    UI_PROGRESS
-};
-
-enum class PlayerState : int
-{
-    NONE,
-    FORAGING_STATE,
-    MINING_STATE
-};
-
-enum class ActionVerb : int
-{
-    INVALID,
-    FORAGE,
-    MINE,
-    VIEW,
-    USE
-};
-
-enum class VerbObject : int
-{
-    NO_OBJECT,
-    INVENTORY,
-    PROGRESS
-};
-
-enum class ResourceName : int
-{
-    NO_RESOURCE,
-    GROUND,
-    COPPER,
-    TIN,
-    IRON,
-    GOLD
-};
-
-enum class ObjectName : int
-{
-    NO_ITEM,
-    STONE,
-    STICK,
-    COPPER_ORE,
-    TIN_ORE,
-    IRON_ORE,
-    GOLD_ORE,
-    STONE_PICKAXE
-};
-
-enum class Skills : int
-{
-    NO_SKILL,
-    HEALTH,
-    FORAGING,
-    MINING
-};
-
 using enum Rarity;
-using enum ActionVerb;
-using enum VerbObject;
-using enum PlayerState;
-using enum ResourceName;
-using enum ObjectName;
-using enum Skills;
 
-const std::unordered_map<std::string_view, ActionVerb> action_map = 
-{   
-    //{"forage", FORAGE},
-    {"mine", MINE},
-    {"view", VIEW}
-};
-
-const std::unordered_map<std::string_view, ResourceName> ores_map = 
+std::string action_to_skill(std::string_view action)
 {
-    {"ground", GROUND},
-    {"copper", COPPER},
-    {"tin", TIN},
-    {"iron", IRON},
-    {"gold", GOLD}
-};
-
-std::string objects_map_inverse(ObjectName obj)
-{
-    switch(obj)
-    {
-        case STONE: return "stone";
-        case STICK: return "stick";
-        case COPPER_ORE: return "copper ore";
-        case TIN_ORE: return "tin ore";
-        case IRON_ORE: return "iron ore";
-        case GOLD_ORE: return "gold ore";
-        default: return "null";
-    }
-}
-
-Skills action_to_skill(ActionVerb action)
-{
-    switch(action)
-    {
-        case ActionVerb::FORAGE: return FORAGING;
-        case ActionVerb::MINE: return MINING;
-        default: return NO_SKILL;
-    }
-}
-
-PlayerState skill_to_playerstate(Skills skill)
-{
-    switch(skill)
-    {
-        case FORAGING: return FORAGING_STATE;
-        case MINING: return MINING_STATE;
-        default: return NONE;
-    }
-}
-
-Skills playerstate_to_skill(PlayerState player_state)
-{
-    switch(player_state)
-    {
-        case FORAGING_STATE: return FORAGING;
-        case MINING_STATE: return MINING;
-        default: return NO_SKILL;
-    }
-}
-
-std::string skill_to_verbose_u(Skills skill)
-{
-    switch(skill)
-    {
-        case HEALTH: return "Health";
-        case FORAGING: return "Foraging";
-        case MINING: return "Mining";
-        default: return "null";
-    }
-}
-
-std::string skill_to_verbose_l(Skills skill)
-{
-    switch(skill)
-    {
-        case HEALTH: return "health";
-        case FORAGING: return "foraging";
-        case MINING: return "mining";
-        default: return "null";
-    }
+    if(action == "search")
+        return "foraging";
+    if(action == "mine")
+        return "mining";
+    return invalid_action;
 }
 
 int level_exp_mapping(int level)

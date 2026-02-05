@@ -1,3 +1,11 @@
+#V 0.0.3820
+-Cleaned code, got rid of enums as led to unnecessary parsing, textual commands now directly map to actions
+-Added Foraging skill
+-Added new resource "ground" accessed via "search ground"
+-Added new objects "stone" and "stick"
+-Todo: sprites for tin, iron and gold ores, add toolbelt functionality, add bank
+-Added a list of controls and valid commands to README.md
+
 #V 0.0.3815
 -Added graphics to inventory
 -Added sprite for copper ore

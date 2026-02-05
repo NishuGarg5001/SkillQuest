@@ -14,3 +14,13 @@ For example, in my case, all my libraries were installed msys64 ucrt64:
 g++ -std=c++20 main.cpp -o main.exe -LC:/msys64/ucrt64/lib/ -lSDL3 -lSDL3_image -lSDL3_ttf -mwindows
 
 -mwindows is to suppress cmd terminal opening alongside game screen.
+
+controls:
+ESC --> open menus
+ENTER --> enter your command / select menu item
+
+valid game commands:
+mine copper --> mine copper resource to get copper ores
+search ground --> forage ground for basic items like stone and stick
+view inventory --> view your inventory
+view progress --> view skill progress when training

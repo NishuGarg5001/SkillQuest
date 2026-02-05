@@ -5,28 +5,41 @@
 
 class Player 
 {
-    std::unordered_map<Skills, std::pair<int, int>> player_skills =
-    {
-        {HEALTH, {10, 1154}},
-        {MINING, {1, 0}}
-    };
+    std::unordered_map<std::string, std::pair<int, int>> player_skills;
     std::array<std::optional<Object>, INVENTORY_SIZE> inventory;
     std::array<std::optional<Tool>, NUM_TOOLS> toolbelt;
-    PlayerState player_state = NONE;
-    int inventory_occupancy = 0;
+    std::string player_state;
+    int inventory_occupancy;
 
     public:
-        Player() noexcept
-        {}
+        void reset() noexcept
+        {
+            for(size_t i = 0; i<skills_list.size(); i++)
+                player_skills[skills_list[i]] = {starting_levels[i], level_exp_mapping(starting_levels[i])};
 
-        bool hasEnoughSkillLevel(Skills skill, int level) const noexcept
+            for (auto& slot : inventory)
+                slot.reset();
+
+            for (auto& tool : toolbelt)
+                tool.reset();
+
+            inventory_occupancy = 0;
+            player_state = invalid_action;
+        }
+
+        Player() noexcept
+        {
+            reset();
+        }
+
+        bool hasEnoughSkillLevel(const std::string& skill, int level) const noexcept
         {
             if(player_skills.at(skill).first >= level)
                 return true;
             return false;
         }
 
-        bool gainExperience(Skills skill, int exp) noexcept
+        bool gainExperience(const std::string& skill, int exp) noexcept
         {
             player_skills[skill].second += exp;
             if(player_skills[skill].second < level_exp_mapping(player_skills[skill].first + 1))
@@ -35,7 +48,7 @@ class Player
             return true;
         }
 
-        size_t expProgress(Skills skill) const
+        size_t expProgress(const std::string& skill) const
         {
             //ceil(a/b) = (a + b - 1)/b for unsigned integers
             int player_exp = player_skills.at(skill).second;
@@ -47,22 +60,22 @@ class Player
             return (player_exp * PROGRESSBAR_PARTITIONS + required_exp - 1)/required_exp;
         }
 
-        void levelUp(Skills skill) noexcept
+        void levelUp(const std::string& skill) noexcept
         {
             player_skills[skill].first += 1;
         }
 
-        int getLevel(Skills skill) const noexcept
+        int getLevel(const std::string& skill) const noexcept
         {
             return player_skills.at(skill).first;
         }
 
-        PlayerState getAction() const noexcept
+        const std::string& getAction() const noexcept
         {
             return player_state;
         }
 
-        void startAction(PlayerState action) noexcept
+        void startAction(std::string_view action) noexcept
         {
             player_state = action;
         }
@@ -89,24 +102,6 @@ class Player
         const std::array<std::optional<Object>, INVENTORY_SIZE>& getInventory() const noexcept
         {
             return inventory;
-        }
-
-        void reset() noexcept
-        {
-            player_skills = 
-            {
-                {HEALTH, {10, 0}},
-                {MINING, {1, 0}}
-            };
-
-            for (auto& slot : inventory)
-                slot.reset();
-
-            for (auto& tool : toolbelt)
-                tool.reset();
-
-            inventory_occupancy = 0;
-            player_state = NONE;
         }
 };
 

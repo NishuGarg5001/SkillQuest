@@ -7,14 +7,14 @@
 
 struct Command
 {
-    ActionVerb verb = INVALID;
-    ResourceName target_resource = NO_RESOURCE;
-    VerbObject verb_object = NO_OBJECT;
+    bool valid;
+    int action_index;
+    int ui_type;
 
-    explicit Command(ActionVerb verb, ResourceName target_resource, VerbObject verb_object) :
-    verb(verb),
-    target_resource(target_resource),
-    verb_object(verb_object)
+    explicit Command(bool valid, int action_index, int ui_type = 0) noexcept : 
+    valid(valid), 
+    action_index(action_index),
+    ui_type(ui_type)
     {}
 };
 
@@ -47,16 +47,18 @@ class Game
     std::deque<std::vector<Word>> text_buffer;
     std::string command = "";
     GameState game_state = GameState::MAIN;
-    UIState ui_state = UIState::BLANK;
-    UIState2 ui_state2 = UIState2::BLANK;
+    std::string ui_state = invalid_ui_state;
+    std::string ui_state2 = invalid_ui_state;
     Player player = Player();
     Menu main_menu = Menu({"New Game", "Load Game", "Quit"}, MAIN_MENU_BOX_WIDTH, MAIN_MENU_BOX_HEIGHT);
     Menu pause_menu =  Menu({"Continue", "Save Game", "Quit to Main Menu"}, PAUSE_MENU_BOX_WIDTH, PAUSE_MENU_BOX_HEIGHT);
     Menu save_menu = Menu({"Slot 1", "Slot 2", "Slot 3"}, SAVE_MENU_BOX_WIDTH, SAVE_MENU_BOX_HEIGHT);
-    const Resource* player_target = nullptr;
-    const std::array<Resource, 1> game_resources =
+    const Resource* player_resource_target = nullptr;
+    const Object* player_item_target = nullptr;
+    const std::array<Resource, 2> game_resources =
     {
-        resource_list.at(COPPER)
+        resource_list.at("ground"),
+        resource_list.at("copper")
     };
 
     public:
@@ -194,11 +196,11 @@ class Game
                                     case SDLK_RETURN:
                                     {
                                         auto parsed_command_text = splitCommand();
-                                        Command parsed_command = parseCommand(parsed_command_text);
-                                        if (parsed_command.verb != ActionVerb::INVALID)
+                                        Command packet = validateCommand(parsed_command_text);
+                                        if (packet.valid)
                                         {
-                                            pushCommandToTextBuffer(std::move(parsed_command_text));
-                                            handleCommand(parsed_command);
+                                            pushCommandToTextBuffer(parsed_command_text);
+                                            handleCommand(packet, parsed_command_text);
                                         }
                                         command.clear();
                                         break;
@@ -229,10 +231,11 @@ class Game
             SDL_RenderClear(renderer);
             text_buffer.clear();
             command.clear();
-            ui_state = UIState::BLANK;
-            ui_state2 = UIState2::BLANK;
+            ui_state = invalid_ui_state;
+            ui_state2 = invalid_ui_state;
             player.reset();
-            player_target = nullptr;
+            player_resource_target = nullptr;
+            player_item_target = nullptr;
         }
 
         void saveGame() const
@@ -245,7 +248,7 @@ class Game
 
         }
 
-        std::pair<std::string, std::string> splitCommand() const
+        std::array<std::string, 2> splitCommand() const
         {
             size_t pos = command.find(' ');
             if(pos == std::string::npos)
@@ -255,171 +258,205 @@ class Game
             return {verb, obj};
         }
 
-        Command parseCommand(std::pair<std::string_view, std::string_view> split_command) const
+        int isValidAction(const std::string& input) const
         {
-            auto it = action_map.find(split_command.first);
-            if(it == action_map.end())
-                return Command(INVALID, NO_RESOURCE, NO_OBJECT);
-            switch(it->second)
-            {
-                case MINE:
-                {
-                    auto it2 = ores_map.find(split_command.second);
-                    if(it2 != ores_map.end())
-                        return Command(it->second, it2->second, NO_OBJECT);
-                    return Command(INVALID, NO_RESOURCE, NO_OBJECT);
-                }
-                case VIEW:
-                {
-                    if(split_command.second == "inventory")
-                        return Command(it->second, NO_RESOURCE, INVENTORY);
-                    if(split_command.second == "progress")
-                        return Command(it->second, NO_RESOURCE, PROGRESS);
-                }
-
-            }
-            return Command(INVALID, NO_RESOURCE, NO_OBJECT);
+            for(int i=0; i<valid_actions.size(); i++)
+                if(input == valid_actions[i])
+                    return i;
+            return -1; 
         }
 
-        bool setPlayerTarget(ResourceName item)
+        bool isValidForage(const std::string& input) const
+        {
+            for(size_t i=0; i<valid_forage_sources.size(); i++)
+                if(input == valid_forage_sources[i])
+                    return true;
+            return false;
+        }
+
+        bool isValidOre(const std::string& input) const
+        {
+            for(size_t i=0; i<valid_mining_sources.size(); i++)
+                if(input == valid_mining_sources[i])
+                    return true;
+            return false;
+        }
+
+        bool isValidUI(const std::string& input) const
+        {
+            for(size_t i=0; i<valid_ui_states.size(); i++)
+                if(input == valid_ui_states[i])
+                    return true;
+            return false;
+        }
+
+        bool isValidUI2(const std::string& input) const
+        {
+            for(size_t i=0; i<valid_ui_states2.size(); i++)
+                if(input == valid_ui_states2[i])
+                    return true;
+            return false;
+        }
+
+        Command validateCommand(const std::array<std::string, 2>& split_command)
+        {
+            int action_index = isValidAction(split_command[0]);
+            if(action_index == -1)
+                return Command(false, -1);
+            switch(action_index)
+            {
+                case 0:
+                    if(!isValidOre(split_command[1]))
+                        return Command(false, -1);
+                break;
+
+                case 1:
+                    if(!isValidForage(split_command[1]))
+                        return Command(false, -1);
+                break;
+
+                case 2:
+                    if(isValidUI(split_command[1]))
+                        return Command(true, action_index, 1);
+                    else if(isValidUI2(split_command[1]))
+                        return Command(true, action_index, 2);
+                    else
+                        return Command(false, action_index);
+                break;
+            }
+            return Command(true, action_index);
+        }
+
+        bool setPlayerTarget(const std::string& item)
         {
             for (const Resource& resource : game_resources)
             {
                 if(resource.name == item)
                 {
-                    player_target = &resource;
+                    player_resource_target = &resource;
                     return true;
                 }
             }
-            player_target = nullptr;
+            player_resource_target = nullptr;
             return false;
         }
 
-        void handleCommand(Command parsed_command)
+        void handleCommand(const Command& packet, const std::array<std::string, 2>& split_command)
         {
-            if(parsed_command.verb == MINE) //expand to skill type command using ||
+            /*
+            pushTextToTextBuffer({split_command[0]},
+                                                {WHITE});
+            pushTextToTextBuffer({split_command[1]},
+                                                {WHITE});
+            */
+            switch(packet.action_index)
             {
-                if(parsed_command.target_resource != NO_RESOURCE) //if it is a skill type command, also check for valid target resource
-                    setPlayerTarget(parsed_command.target_resource);
-                // add a condition to check for valid target item for example in case of burn logs skills can also be trained like this
-                // later expand with if(player_target_resource || player_target_item) to handle both resource and item targets
-                if(player_target)
+                case 0:
+                case 1:
                 {
-                    Skills skill = action_to_skill(parsed_command.verb);
-                    if(!player.hasEnoughSkillLevel(skill, player_target->resource_min_level))
+                    setPlayerTarget(split_command[1]);
+                    if(player_resource_target)
                     {
-                        pushTextToTextBuffer({"You", "do", "not", "have", "enough", std::string(skill_to_verbose_l(skill)), "level!"},
-                                            {WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, WHITE});
-                        return;
-                    }
-                    player.startAction(skill_to_playerstate(skill));
-                }
-            }
-            else
-            {
-                switch(parsed_command.verb)
-                {
-                    case VIEW:
-                    {
-                        switch(parsed_command.verb_object)
+                        std::string skill = action_to_skill(split_command[0]);
+                        if(!player.hasEnoughSkillLevel(skill, player_resource_target->resource_min_level))
                         {
-                            case INVENTORY:
-                                ui_state = UIState::UI_INVENTORY;
-                                break;
-                            case PROGRESS:
-                                ui_state2 = UIState2::UI_PROGRESS;
-                                break;
+                            pushTextToTextBuffer({"You", "do", "not", "have", "enough", skill, "level!"},
+                                                {WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, WHITE});
+                            return;
                         }
+                        player.startAction(skill);
+                    }
+                }
+                break;
+
+                case 2:
+                {
+                    switch(packet.ui_type)
+                    {
+                        case 1:
+                        ui_state = split_command[1];
+                        break;
+                        case 2:
+                        ui_state2 = split_command[1];
+                        break;
+                        default:
                         break;
                     }
                 }
+                break;
             }
         }
 
         std::vector<DropResult> extractResource() 
         //Extracts resource and adds it to inventory, returns name to updateState for verbose
         {
-            if(player_target == nullptr)
+            if(player_resource_target == nullptr)
                 return {};
             //handle drop_rate = 0 case
             std::vector<DropResult> res = {};
-            res.reserve(player_target->len);
-            for (size_t i=0; i<player_target->len; i++)
+            res.reserve(player_resource_target->len);
+            for (size_t i=0; i<player_resource_target->len; i++)
             {
-                if(random_int(0, player_target->drop_rates[i] - 1) == 0)
-                        if(player.addItem(player_target->objects[i]))
-                            res.emplace_back(player_target->objects[i].name, player_target->rarities[i], player_target->rarity_colors[i],
-                            player_target->exps[i]);
+                if(random_int(0, player_resource_target->drop_rates[i] - 1) == 0)
+                        if(player.addItem(player_resource_target->objects[i]))
+                            res.emplace_back(player_resource_target->objects[i].name, player_resource_target->rarities[i], player_resource_target->rarity_colors[i],
+                            player_resource_target->exps[i]);
             }
             if(!res.empty())
                 return res;
             return {};
         }
 
+        void stopExtraction()
+        {
+            pushTextToTextBuffer({"Your", "inventory", "is", "full!"}, {WHITE, WHITE, WHITE, WHITE});
+            player_resource_target = nullptr;
+            player.startAction(invalid_action);
+            ui_state = invalid_ui_state;
+            ui_state2 = invalid_ui_state;
+        }
+
+        void gainExperience(const std::string& action, int exp)
+        {
+            pushTextToTextBuffer
+                (
+                    {"You", "gained", std::to_string(exp), action, "experience."},
+                    {WHITE, WHITE, WHITE, WHITE, WHITE}
+                );
+
+            if(player.gainExperience(action, exp))
+                pushTextToTextBuffer
+                (
+                    {"Congratulations!", "You", "have", "gained", "1", action, "level.", "Your", action, "level", "is", 
+                        "now", std::to_string(player.getLevel(action)) + "."},
+                    std::vector<SDL_Color>(13, WHITE)
+                );
+        }
+
         void updateState()
         {
-            PlayerState action = player.getAction();
-            if(action == MINING_STATE) //If a skill-based action
+            std::string action = player.getAction();
+            if(player_resource_target)  //if player has a target resource, it is an extraction kind of skill task
             {
-                Skills skill = playerstate_to_skill(action);
-                if(player_target)  //if player has a target resource, it is an extraction kind of skill task
+                auto drop = extractResource();
+                if(drop.empty() && player.isInventoryFull())
                 {
-                    auto drop = extractResource();
-                    if(drop.empty())
-                    {
-                        if(player.isInventoryFull())
-                        {
-                            pushTextToTextBuffer({"Your", "inventory", "is", "full!"}, {WHITE, WHITE, WHITE, WHITE});
-                            player_target = nullptr;
-                            player.startAction(NONE);
-                            if(ui_state != UIState::BLANK)
-                                ui_state = UIState::BLANK;
-                            if(ui_state2 != UIState2::BLANK)
-                                ui_state2 = UIState2::BLANK;
-                        }
-                        return;
-                    }
-                    else
-                    {
-                        for(size_t i=0; i<drop.size(); i++)
-                        {
-                            switch(action)
-                            {
-                                case MINING_STATE:
-                                    pushTextToTextBuffer(
-                                        {"You", "mined", "a", std::string(objects_map_inverse(drop[i].obj_name)) + "."}, 
-                                        {WHITE, WHITE, WHITE, drop[i].rarity_color}
-                                    );
-                                    break;
-                            }
-                            std::string skill_str = std::string(skill_to_verbose_l(skill));
-                            pushTextToTextBuffer(
-                                        {"You", "gained", std::to_string(drop[i].exp), skill_str, "experience."},
-                                        {WHITE, WHITE, WHITE, WHITE, WHITE}
-                                    );
-                            if(player.gainExperience(skill, drop[i].exp))
-                                pushTextToTextBuffer(
-                                    {"Congratulations!", "You", "have", "gained", "1", skill_str, "level.", "Your", skill_str, "level", "is", 
-                                        "now",std::to_string(player.getLevel(skill)) + "."},
-                                    std::vector<SDL_Color>(13, WHITE)
-                                );
-                        }
-                    }
+                    stopExtraction();
+                    return;
                 }
-                //else {} block to be added her for non-extraction skill based tasks
-                /*
-                else
+                for(size_t i=0; i<drop.size(); i++)
                 {
-                    exp =
-                }
-                */
-            }
-            else
-            {
-                switch(action)
-                {
-                    case NONE:
-                        break;
+                    if(action == "mining")
+                        pushTextToTextBuffer(
+                            {"You", "mined", "a", std::string(drop[i].obj_name) + "."}, 
+                            {WHITE, WHITE, WHITE, drop[i].rarity_color}
+                        );
+                    else if(action == "foraging")
+                        pushTextToTextBuffer(
+                            {"You", "found", "a", std::string(drop[i].obj_name) + "."}, 
+                            {WHITE, WHITE, WHITE, drop[i].rarity_color}
+                        );
+                    gainExperience(action, drop[i].exp);
                 }
             }
         }
@@ -443,17 +480,17 @@ class Game
             }
         }
 
-        void pushCommandToTextBuffer(std::pair<std::string, std::string> command)
+        void pushCommandToTextBuffer(std::array<std::string, 2> command)
         {
             makeSpaceTextBuffer();
-            size_t w1 = getTextLen(command.first);
-            size_t w2 = getTextLen(command.second);
+            size_t w1 = getTextLen(command[0]);
+            size_t w2 = getTextLen(command[1]);
             float x = 0.0f;
             float y = static_cast<float>(text_buffer.size()) * FONT_SIZE;
             float x2 = static_cast<float>(w1 + getTextLen(" "));
             auto& line = text_buffer.emplace_back();
-            line.emplace_back(std::move(command.first), WHITE, x, y, w1);
-            line.emplace_back(std::move(command.second), WHITE, x2, y, w2);
+            line.emplace_back(std::move(command[0]), WHITE, x, y, w1);
+            line.emplace_back(std::move(command[1]), WHITE, x2, y, w2);
         }
 
         void pushTextToTextBuffer(const std::vector<std::string>& words, const std::vector<SDL_Color>& colors)
@@ -513,10 +550,12 @@ class Game
 
         void renderUI()
         {
-            if(ui_state2 == UIState2::UI_PROGRESS && player.getAction() != NONE)
+            if(ui_state2 == "progress" && player.getAction() != invalid_action)
             {
-                Skills skill = playerstate_to_skill(player.getAction());
-                std::string text = skill_to_verbose_u(skill) + " Lv." + std::to_string(player.getLevel(skill));
+                std::string skill = player.getAction();
+                std::string skill_upper = skill;
+                skill_upper[0] = std::toupper(skill_upper[0]);
+                std::string text = skill_upper + " Lv." + std::to_string(player.getLevel(skill));
                 drawText(text, static_cast<float>(VLINE_OFFSET_RAW), static_cast<float>(HLINE_OFFSET - FONT_SIZE), 
                         getTextLen(text));
                 size_t num_rects = std::min(player.expProgress(skill), PROGRESSBAR_PARTITIONS);
@@ -530,7 +569,7 @@ class Game
                     SDL_RenderFillRect(renderer, &progress_rect);
                 }
             }
-            if(ui_state == UIState::UI_INVENTORY)
+            if(ui_state == "inventory")
             {
                 SDL_SetRenderDrawColor(renderer, INVENTORY_LINE_COLOR.r, INVENTORY_LINE_COLOR.g, INVENTORY_LINE_COLOR.b, INVENTORY_LINE_COLOR.a);
                 //horizontal lines

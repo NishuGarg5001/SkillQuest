@@ -5,27 +5,27 @@
 
 struct Object
 {
-    const ObjectName name;
+    const std::string name;
     const std::string path;
 
-    explicit Object(ObjectName name, std::string path) :
-    name(name),
+    explicit Object(std::string name, std::string path) :
+    name(std::move(name)),
     path(std::move(ASSET_SPRITE_PATH + path))
     {}
 };
 
 struct Tool : Object
 {
-    const Skills skill;
-    explicit Tool(ObjectName name, std::string path, Skills skill) :
-    Object(name, path),
-    skill(skill)
+    const std::string skill;
+    explicit Tool(std::string name, std::string path, std::string skill) :
+    Object(std::move(name), std::move(path)),
+    skill(std::move(skill))
     {}
 };
 
 struct Resource
 {
-    const ResourceName name;
+    const std::string name;
     const std::vector<Object> objects;
     const std::vector<int> object_levels, exps, drop_rates; 
     //minimum levels to extract that object
@@ -36,9 +36,9 @@ struct Resource
     const std::vector<SDL_Color> rarity_colors;
     const size_t len;
 
-    explicit Resource(ResourceName name, std::vector<Object> objects, std::vector<int> object_levels,
+    explicit Resource(std::string name, std::vector<Object> objects, std::vector<int> object_levels,
     std::vector<int> exps, std::vector<int> drop_rates) :
-    name(name),
+    name(std::move(name)),
     objects(std::move(objects)),
     object_levels(std::move(object_levels)),
     resource_min_level(*std::min_element(this->object_levels.begin(), this->object_levels.end())),
@@ -52,13 +52,13 @@ struct Resource
 
 struct DropResult
 {
-    const ObjectName obj_name;
+    const std::string obj_name;
     const Rarity rarity;
     SDL_Color rarity_color;
     const int exp;
 
-    explicit DropResult(ObjectName obj_name, Rarity rarity, SDL_Color rarity_color, int exp) :
-    obj_name(obj_name),
+    explicit DropResult(std::string obj_name, Rarity rarity, SDL_Color rarity_color, int exp) :
+    obj_name(std::move(obj_name)),
     rarity(rarity),
     rarity_color(rarity_color),
     exp(exp)
@@ -68,11 +68,11 @@ struct DropResult
 
 //actual game resources
 //objects
-const std::unordered_map<ObjectName, Object> object_list
+const std::unordered_map<std::string, Object> object_list
 {
-    //{STONE, Object(STONE, "stone.png")},
-    //{STICK, Object(STICK, "stick.png")},
-    {COPPER_ORE, Object(COPPER_ORE, "copper_ore.png")}
+    {"stone", Object("stone", "stone.png")},
+    {"stick", Object("stick", "stick.png")},
+    {"copper ore", Object("copper ore", "copper_ore.png")}
     /*
     {TIN_ORE, Object(COPPER_ORE, "tin_ore.png")},
     {IRON_ORE, Object(COPPER_ORE, "iron_ore.png")},
@@ -81,10 +81,10 @@ const std::unordered_map<ObjectName, Object> object_list
 };
 
 //name, objects, min_levels, exps, drop_rates
-const std::unordered_map<ResourceName, Resource> resource_list
+const std::unordered_map<std::string, Resource> resource_list
 {
-    //{GROUND, Resource(GROUND, {object_list.at(STONE), object_list.at(STICK)}, {1, 1}, {4, 4}, {10, 10})},
-    {COPPER, Resource(COPPER, {object_list.at(COPPER_ORE)}, {1}, {4}, {10, 10})}
+    {"ground", Resource("ground", {object_list.at("stone"), object_list.at("stick")}, {1, 1}, {4, 4}, {10, 10})},
+    {"copper", Resource("copper", {object_list.at("copper ore")}, {1}, {4}, {10})}
 };
 /*
     {TIN, Resource(TIN, {object_list.at(TIN_ORE)}, {1}, {4}, {5})},
