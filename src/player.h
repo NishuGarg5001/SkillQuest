@@ -8,8 +8,10 @@ class Player
     std::unordered_map<std::string, std::pair<int, int>> player_skills;
     std::array<std::optional<Object>, INVENTORY_SIZE> inventory;
     std::array<std::optional<Tool>, NUM_TOOLS> toolbelt;
+    std::array<std::optional<std::pair<Object, size_t>>, VAULT_SIZE> vault;
     std::string player_state;
-    int inventory_occupancy;
+    size_t inventory_occupancy;
+    size_t vault_occupancy;
 
     public:
         void reset() noexcept
@@ -20,11 +22,15 @@ class Player
             for (auto& slot : inventory)
                 slot.reset();
 
+            for (auto& slot : vault)
+                slot.reset();
+
             for (auto& tool : toolbelt)
                 tool.reset();
 
             inventory_occupancy = 0;
-            player_state = invalid_action;
+            vault_occupancy = 0;
+            stop();
         }
 
         Player() noexcept
@@ -80,6 +86,11 @@ class Player
             player_state = action;
         }
 
+        void stop() noexcept
+        {
+            player_state = invalid_action;
+        }
+
         bool addItem(Object item) //Cannot be Object& because resource needs to return object.name
         //and after move, item will be eaten up by slot and if item is a reference to object, object will not be able
         //to return object.name as it will become empty
@@ -94,14 +105,77 @@ class Player
             return false;
         }
 
+        bool hasInInventory(std::string_view item_name) const noexcept
+        {
+            for(const auto& slot : inventory)
+                if(slot.has_value() && slot->name == item_name)
+                    return true;
+            return false;
+        }
+
+        bool hasInVault(std::string_view item_name) const noexcept
+        {
+            for(const auto& slot : vault)
+                if(slot.has_value() && slot->first.name == item_name)
+                    return true;
+            return false;
+        }
+
         bool isInventoryFull() const noexcept
         {
             return inventory_occupancy == INVENTORY_SIZE;
         }
 
+        bool isVaultFull() const noexcept
+        {
+            return vault_occupancy == VAULT_SIZE;
+        }
+
+        void depositItem(std::string item_name, size_t quantity)
+        {
+            if(quantity == 0)
+                return;
+            size_t moved = 0;
+            std::optional<size_t> vault_index;
+            bool new_item = true;
+
+            for (size_t j=0; j<VAULT_SIZE; j++)
+            {
+                if(!vault[j] && !vault_index)
+                    vault_index = j;
+                if (vault[j] && vault[j]->first.name == item_name)
+                {
+                    vault_index = j;
+                    new_item = false;
+                    break;
+                }
+            }
+
+            for(size_t i=0; i<INVENTORY_SIZE && moved < quantity; i++)
+            {
+                if(inventory[i] && inventory[i]->name == item_name)
+                {
+                    if(moved == 0 && new_item)
+                    {
+                        vault[*vault_index].emplace(std::move(*inventory[i]), 0);
+                        vault_occupancy++;
+                    }
+                    vault[*vault_index]->second++;
+                    inventory[i].reset();
+                    inventory_occupancy--;
+                    moved++;
+                }
+            }
+        }
+
         const std::array<std::optional<Object>, INVENTORY_SIZE>& getInventory() const noexcept
         {
             return inventory;
+        }
+
+        const std::array<std::optional<std::pair<Object, size_t>>, VAULT_SIZE>& getVault() const noexcept
+        {
+            return vault;
         }
 };
 

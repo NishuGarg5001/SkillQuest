@@ -1,3 +1,9 @@
+#V 0.0.3825
+-Added vault to store items
+-Added deposit command to deposit items to vault
+-Sprites added for tin, iron, gold ore and stone pickaxe
+-Todo: implement withdraw command, add toolbelt functionality
+
 #V 0.0.3820
 -Cleaned code, got rid of enums as led to unnecessary parsing, textual commands now directly map to actions
 -Added Foraging skill

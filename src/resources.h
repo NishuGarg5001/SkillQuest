@@ -68,37 +68,39 @@ struct DropResult
 
 //actual game resources
 //objects
-const std::unordered_map<std::string, Object> object_list
+const std::unordered_map<std::string_view, Object> object_list
 {
     {"stone", Object("stone", "stone.png")},
     {"stick", Object("stick", "stick.png")},
-    {"copper ore", Object("copper ore", "copper_ore.png")}
-    /*
-    {TIN_ORE, Object(COPPER_ORE, "tin_ore.png")},
-    {IRON_ORE, Object(COPPER_ORE, "iron_ore.png")},
-    {GOLD_ORE, Object(COPPER_ORE, "gold_ore.png")},
-    */
+    {"copper ore", Object("copper ore", "copper_ore.png")},
+    {"tin ore", Object("tin ore", "tin_ore.png")},
+    {"iron ore", Object("iron ore", "iron_ore.png")},
+    {"gold ore", Object("gold ore", "gold_ore.png")},
 };
+
+struct InitResources {
+    InitResources() {
+        // touch object_list first
+        (void)object_list.size();
+    }
+};
+
+const InitResources init_resources;
 
 //name, objects, min_levels, exps, drop_rates
-const std::unordered_map<std::string, Resource> resource_list
+const std::unordered_map<std::string_view, Resource> resource_list
 {
-    {"ground", Resource("ground", {object_list.at("stone"), object_list.at("stick")}, {1, 1}, {4, 4}, {10, 10})},
-    {"copper", Resource("copper", {object_list.at("copper ore")}, {1}, {4}, {10})}
+    {"ground", Resource("ground", {object_list.at("stone"), object_list.at("stick")}, {1, 1}, {4, 4}, {5, 5})},
+    {"copper", Resource("copper", {object_list.at("copper ore")}, {1}, {4}, {5})},
+    {"tin", Resource("tin", {object_list.at("tin ore")}, {1}, {4}, {5})},
+    {"iron", Resource("iron", {object_list.at("iron ore")}, {10}, {20}, {10})},
+    {"gold", Resource("gold", {object_list.at("gold ore")}, {20}, {30}, {15})}
 };
-/*
-    {TIN, Resource(TIN, {object_list.at(TIN_ORE)}, {1}, {4}, {5})},
-    {IRON, Resource(IRON, {object_list.at(IRON_ORE)}, {10}, {20}, {10})},
-    {GOLD, Resource(GOLD, {object_list.at(GOLD_ORE)}, {20}, {30}, {15})}
-};
-*/
 
 //tools
-/*
-const std::unordered_map<ObjectName, Tool> tool_list
+const std::unordered_map<std::string_view, Tool> tool_list
 {
-    {STONE_PICKAXE, Tool(STONE_PICKAXE, "stone_pickaxe.png", MINING)}
-}
-*/
+    {"stone pickaxe", Tool("stone pickaxe", "stone_pickaxe.png", "mining")}
+};
 
 #endif

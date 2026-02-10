@@ -12,8 +12,6 @@
 #include <SDL3_ttf/SDL_ttf.h>
 #include <SDL3_image/SDL_image.h>
 
-
-
 //screen dimensions
 constexpr size_t SCREEN_WIDTH  = 1366;
 constexpr size_t SCREEN_HEIGHT = 768;
@@ -39,18 +37,31 @@ constexpr size_t SAVE_MENU_BOX_WIDTH = 90;
 constexpr size_t SAVE_MENU_BOX_HEIGHT = static_cast<size_t>(FONT_SIZE * 3.0f + 0.2f * FONT_SIZE);
 
 //UI dimensions
-constexpr size_t INVENTORY_SCALE = 4; //Should take values [1, 2, 4, 8, 16] determines how much inventory player has
-constexpr size_t INVENTORY_BOX_WIDTH = 8 * INVENTORY_SCALE;
-constexpr size_t INVENTORY_BOX_HEIGHT = 8 * INVENTORY_SCALE;
-constexpr size_t INVENTORY_BOXES_PER_ROW = 36 / INVENTORY_SCALE; //48
-constexpr size_t INVENTORY_BOXES_PER_COL = 24 / INVENTORY_SCALE; //32
-constexpr size_t INVENTORY_LINE_WIDTH = 4; // LINE WIDTH SHOULD BE > 1
-constexpr size_t INVENTORY_END = INVENTORY_BOX_HEIGHT * INVENTORY_BOXES_PER_COL + INVENTORY_LINE_WIDTH * (INVENTORY_BOXES_PER_COL + 1);
+constexpr size_t UI_SCALE = 4; //Should take values [1, 2, 4, 8, 16]
+constexpr size_t LINE_WIDTH = 4; //LINE WIDTH SHOULD BE > 1
+
+//inventory dimensions
+constexpr size_t INVENTORY_BOX_WIDTH = 8 * UI_SCALE;
+constexpr size_t INVENTORY_BOX_HEIGHT = 8 * UI_SCALE;
+constexpr size_t INVENTORY_BOXES_PER_ROW = 36 / UI_SCALE; //48
+constexpr size_t INVENTORY_BOXES_PER_COL = 24 / UI_SCALE; //32
+constexpr size_t INVENTORY_END = INVENTORY_BOX_HEIGHT * INVENTORY_BOXES_PER_COL + LINE_WIDTH * (INVENTORY_BOXES_PER_COL + 1);
+
+constexpr size_t INVENTORY_VAULT_V_OFFSET = 10;
+
+//vault dimensions
+constexpr size_t VAULT_BOX_WIDTH = INVENTORY_BOX_WIDTH;
+constexpr size_t VAULT_BOX_HEIGHT = INVENTORY_BOX_HEIGHT;
+constexpr size_t VAULT_BOXES_PER_ROW = INVENTORY_BOXES_PER_ROW;
+constexpr size_t VAULT_BOXES_PER_COL = INVENTORY_BOXES_PER_COL + UI_SCALE;
+constexpr size_t VAULT_END = INVENTORY_END + INVENTORY_VAULT_V_OFFSET + VAULT_BOX_HEIGHT * VAULT_BOXES_PER_COL + LINE_WIDTH * (VAULT_BOXES_PER_COL + 1);
+
 constexpr size_t HLINE_OFFSET = SCREEN_HEIGHT - static_cast<size_t>(FONT_SIZE);
-constexpr size_t VLINE_OFFSET_RAW = SCREEN_WIDTH - (INVENTORY_BOXES_PER_ROW + 1) * INVENTORY_LINE_WIDTH - (INVENTORY_BOX_WIDTH * INVENTORY_BOXES_PER_ROW) + 1;
-constexpr size_t NUM_LINES = HLINE_OFFSET / static_cast<size_t>(FONT_SIZE);
+constexpr size_t VLINE_OFFSET_RAW = SCREEN_WIDTH - (INVENTORY_BOXES_PER_ROW + 1) * LINE_WIDTH - (INVENTORY_BOX_WIDTH * INVENTORY_BOXES_PER_ROW) + 1;
 constexpr size_t CURSOR_WIDTH = 8;
 constexpr size_t VLINE_OFFSET = VLINE_OFFSET_RAW - CURSOR_WIDTH;
+//constexpr size_t NUM_LINES = HLINE_OFFSET / static_cast<size_t>(FONT_SIZE);
+
 constexpr size_t PROGRESSBAR_PARTITIONS = 30;
 constexpr size_t PROGRESSBAR_SPACING = 2;
 constexpr size_t PROGRESS_BAR_WIDTH = (SCREEN_WIDTH - VLINE_OFFSET_RAW - (PROGRESSBAR_PARTITIONS - 1) * PROGRESSBAR_SPACING) / 
@@ -58,17 +69,20 @@ constexpr size_t PROGRESS_BAR_WIDTH = (SCREEN_WIDTH - VLINE_OFFSET_RAW - (PROGRE
 
 //Game constants
 constexpr size_t INVENTORY_SIZE = INVENTORY_BOXES_PER_ROW * INVENTORY_BOXES_PER_COL;
+constexpr size_t VAULT_SIZE = VAULT_BOXES_PER_ROW * VAULT_BOXES_PER_COL;
 constexpr size_t NUM_TOOLS = 1;
 constexpr std::string invalid_ui_state = "";
 constexpr std::string invalid_target = "";
 constexpr std::string invalid_action = "";
-const std::array<std::string, 3> valid_actions = {"mine", "search", "view"};
-const std::array<std::string, 2> valid_forage_sources = {"ground"};
+const std::array<std::string, 5> valid_actions = {"stop", "mine", "search", "view", "deposit"};
+const std::array<std::string, 1> valid_forage_sources = {"ground"};
 const std::array<std::string, 4> valid_mining_sources = {"copper", "tin", "iron", "gold"};
 const std::array<std::string, 3> skills_list = {"health", "foraging", "mining"};
-const std::array<std::string, 1> valid_ui_states = {"inventory"};
-const std::array<std::string, 1> valid_ui_states2 = {"progress"};
+const std::array<std::string, 3> valid_ui_states = {"progress", "inventory", "vault"};
 const std::array<int, 3> starting_levels = {10, 1, 1};
+
+//item list
+const std::array<std::string, 6> valid_items = {"stone", "stick", "copper ore", "tin ore", "iron ore", "gold ore"};
 
 //Colors
 constexpr SDL_Color WHITE = {255, 255, 255, 255};

@@ -24,3 +24,5 @@ mine copper --> mine copper resource to get copper ores
 search ground --> forage ground for basic items like stone and stick
 view inventory --> view your inventory
 view progress --> view skill progress when training
+view vault --> view your vault
+deposit item name q --> deposity q quantity of item to vault for eg. deposit copper ore 10 --> deposits 10 x copper ore to vault

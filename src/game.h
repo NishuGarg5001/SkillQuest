@@ -7,14 +7,14 @@
 
 struct Command
 {
-    bool valid;
     int action_index;
-    int ui_type;
+    std::optional<int> ui_index;
+    std::optional<int> item_index;
 
-    explicit Command(bool valid, int action_index, int ui_type = 0) noexcept : 
-    valid(valid), 
+    explicit Command(int action_index, std::optional<int> ui_index, std::optional<int> item_index = std::nullopt) noexcept : 
     action_index(action_index),
-    ui_type(ui_type)
+    ui_index(ui_index),
+    item_index(item_index)
     {}
 };
 
@@ -40,25 +40,26 @@ class Game
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
     TTF_Font* font = nullptr;
-    int fps = 60;
-    int frame_time = 1000 / fps;
-    bool cursor_visible = false;
-    Uint64 last_cursor_toggle = 0;
+    int fps;
+    int frame_time;
+    bool cursor_visible;
+    Uint64 last_cursor_toggle;
     std::deque<std::vector<Word>> text_buffer;
-    std::string command = "";
+    std::string command;
     GameState game_state = GameState::MAIN;
-    std::string ui_state = invalid_ui_state;
-    std::string ui_state2 = invalid_ui_state;
+    std::string ui_state;
+    std::string ui_state2;
     Player player = Player();
     Menu main_menu = Menu({"New Game", "Load Game", "Quit"}, MAIN_MENU_BOX_WIDTH, MAIN_MENU_BOX_HEIGHT);
     Menu pause_menu =  Menu({"Continue", "Save Game", "Quit to Main Menu"}, PAUSE_MENU_BOX_WIDTH, PAUSE_MENU_BOX_HEIGHT);
     Menu save_menu = Menu({"Slot 1", "Slot 2", "Slot 3"}, SAVE_MENU_BOX_WIDTH, SAVE_MENU_BOX_HEIGHT);
-    const Resource* player_resource_target = nullptr;
-    const Object* player_item_target = nullptr;
-    const std::array<Resource, 2> game_resources =
+    const Resource* player_resource_target;
+    const Object* player_item_target;
+    const std::array<Resource, 3> game_resources =
     {
         resource_list.at("ground"),
-        resource_list.at("copper")
+        resource_list.at("copper"),
+        resource_list.at("tin")
     };
 
     public:
@@ -195,12 +196,12 @@ class Game
                                     }
                                     case SDLK_RETURN:
                                     {
-                                        auto parsed_command_text = splitCommand();
-                                        Command packet = validateCommand(parsed_command_text);
-                                        if (packet.valid)
+                                        auto parsed_command_text = splitCommand(command);
+                                        auto packet = validateCommand(parsed_command_text);
+                                        if (packet)
                                         {
-                                            pushCommandToTextBuffer(parsed_command_text);
-                                            handleCommand(packet, parsed_command_text);
+                                            pushTextToTextBuffer(parsed_command_text, std::vector<SDL_Color>(parsed_command_text.size(), WHITE));
+                                            handleCommand(*packet, parsed_command_text);
                                         }
                                         command.clear();
                                         break;
@@ -229,9 +230,13 @@ class Game
         void newGame() noexcept
         {
             SDL_RenderClear(renderer);
+            fps = 60;
+            frame_time = 1000 / fps;
+            cursor_visible = false;
+            last_cursor_toggle = 0;
             text_buffer.clear();
             command.clear();
-            ui_state = invalid_ui_state;
+            ui_state = "inventory";
             ui_state2 = invalid_ui_state;
             player.reset();
             player_resource_target = nullptr;
@@ -248,25 +253,38 @@ class Game
 
         }
 
-        std::array<std::string, 2> splitCommand() const
+        std::vector<std::string> splitCommand(std::string command) const
         {
+            std::vector<std::string> res;
             size_t pos = command.find(' ');
-            if(pos == std::string::npos)
-                return {"", ""};
-            std::string verb(command.data(), pos);
-            std::string obj(command.data() + pos + 1);
-            return {verb, obj};
+            while(pos != std::string::npos)
+            {
+                res.push_back(command.substr(0, pos));
+                command.erase(0, pos + 1);
+                pos = command.find(' ');
+            }
+            if(!command.empty())
+                res.push_back(command);
+            return res;
         }
 
-        int isValidAction(const std::string& input) const
+        std::string join(const std::vector<std::string>& split_command) const
+        {
+            std::string res;
+            for(size_t i=1; i<split_command.size()-1; i++)
+                res += split_command[i] + ((i == split_command.size() - 2) ? "" : " ");
+            return res;
+        }
+
+        std::optional<int> isValidAction(std::string_view input) const
         {
             for(int i=0; i<valid_actions.size(); i++)
                 if(input == valid_actions[i])
                     return i;
-            return -1; 
+            return std::nullopt; 
         }
 
-        bool isValidForage(const std::string& input) const
+        bool isValidForage(std::string_view input) const
         {
             for(size_t i=0; i<valid_forage_sources.size(); i++)
                 if(input == valid_forage_sources[i])
@@ -274,7 +292,7 @@ class Game
             return false;
         }
 
-        bool isValidOre(const std::string& input) const
+        bool isValidOre(std::string_view input) const
         {
             for(size_t i=0; i<valid_mining_sources.size(); i++)
                 if(input == valid_mining_sources[i])
@@ -282,49 +300,77 @@ class Game
             return false;
         }
 
-        bool isValidUI(const std::string& input) const
+        std::optional<int> isValidUI(std::string_view input) const
         {
             for(size_t i=0; i<valid_ui_states.size(); i++)
                 if(input == valid_ui_states[i])
-                    return true;
-            return false;
+                    return static_cast<int>(i);
+            return std::nullopt;
         }
 
-        bool isValidUI2(const std::string& input) const
+        bool isValidNumber(std::string_view input) const
         {
-            for(size_t i=0; i<valid_ui_states2.size(); i++)
-                if(input == valid_ui_states2[i])
-                    return true;
-            return false;
+            for(char c : input)
+                if(!std::isdigit(c))
+                    return false;
+            return true;
         }
 
-        Command validateCommand(const std::array<std::string, 2>& split_command)
+        std::optional<int> isValidItem(std::string_view input) const
         {
-            int action_index = isValidAction(split_command[0]);
-            if(action_index == -1)
-                return Command(false, -1);
-            switch(action_index)
+            for(size_t i=0; i<valid_items.size(); i++)
+                if(input == valid_items[i])
+                    return static_cast<int>(i);
+            return std::nullopt;
+        }
+
+        std::optional<Command> validateCommand(const std::vector<std::string>& split_command)
+        {
+            std::optional<int> action_index = isValidAction(split_command[0]);
+            if(!action_index)
+                return std::nullopt;
+            switch(*action_index)
             {
                 case 0:
-                    if(!isValidOre(split_command[1]))
-                        return Command(false, -1);
-                break;
-
+                {
+                    return Command(*action_index, std::nullopt, std::nullopt);
+                }
                 case 1:
-                    if(!isValidForage(split_command[1]))
-                        return Command(false, -1);
-                break;
+                {
+                    if(split_command.size() < 2 || !isValidOre(split_command[1]))
+                        return std::nullopt;
+                    return Command(*action_index, std::nullopt, std::nullopt);
+                }
 
                 case 2:
-                    if(isValidUI(split_command[1]))
-                        return Command(true, action_index, 1);
-                    else if(isValidUI2(split_command[1]))
-                        return Command(true, action_index, 2);
-                    else
-                        return Command(false, action_index);
-                break;
+                {
+                    if(split_command.size() < 2 || !isValidForage(split_command[1]))
+                        return std::nullopt;
+                    return Command(*action_index, std::nullopt, std::nullopt);
+                }
+
+                case 3:
+                {
+                    if(split_command.size() < 2)
+                        return std::nullopt;
+                    std::optional<int> ui_index = isValidUI(split_command[1]);
+                    if(!ui_index)
+                        return std::nullopt;
+                    return Command(*action_index, ui_index, std::nullopt);
+                }
+
+                case 4:
+                {
+                    if(ui_state2 != valid_ui_states[2] || split_command.size() < 3 || !isValidNumber(split_command[split_command.size() - 1]))
+                        return std::nullopt;
+                    std::string item = join(split_command);
+                    std::optional<int> item_index = isValidItem(item);
+                    if(!item_index || !player.hasInInventory(item))
+                        return std::nullopt;
+                    return Command(*action_index, std::nullopt, item_index);
+                }
             }
-            return Command(true, action_index);
+            return std::nullopt;
         }
 
         bool setPlayerTarget(const std::string& item)
@@ -341,10 +387,9 @@ class Game
             return false;
         }
 
-        void handleCommand(const Command& packet, const std::array<std::string, 2>& split_command)
+        void handleCommand(const Command& packet, const std::vector<std::string>& split_command)
         {
-            /*
-            pushTextToTextBuffer({split_command[0]},
+            /*pushTextToTextBuffer({split_command[0]},
                                                 {WHITE});
             pushTextToTextBuffer({split_command[1]},
                                                 {WHITE});
@@ -352,8 +397,16 @@ class Game
             switch(packet.action_index)
             {
                 case 0:
-                case 1:
                 {
+                    player.stop();
+                    player_resource_target = nullptr;
+                }
+                break;
+
+                case 1:
+                case 2:
+                {
+                    ui_state2 = "";
                     setPlayerTarget(split_command[1]);
                     if(player_resource_target)
                     {
@@ -369,19 +422,36 @@ class Game
                 }
                 break;
 
-                case 2:
+                case 3:
                 {
-                    switch(packet.ui_type)
+                    switch(*packet.ui_index)
                     {
+                        case 0:
+                        ui_state2 = split_command[1];
+                        break;
                         case 1:
                         ui_state = split_command[1];
                         break;
                         case 2:
-                        ui_state2 = split_command[1];
-                        break;
-                        default:
+                        {
+                            player.stop();
+                            player_resource_target = nullptr;
+                            ui_state2 = split_command[1];
+                        }
                         break;
                     }
+                }
+                break;
+
+                case 4:
+                {
+                    std::string item = valid_items[*packet.item_index];
+                    if(player.isVaultFull() && !player.hasInVault(item))
+                    {
+                        pushTextToTextBuffer({"Your", "vault", "is", "full!"}, {WHITE, WHITE, WHITE, WHITE});
+                        return;
+                    }
+                    player.depositItem(item, std::stoi(split_command.back()));
                 }
                 break;
             }
@@ -411,7 +481,7 @@ class Game
         {
             pushTextToTextBuffer({"Your", "inventory", "is", "full!"}, {WHITE, WHITE, WHITE, WHITE});
             player_resource_target = nullptr;
-            player.startAction(invalid_action);
+            player.stop();
             ui_state = invalid_ui_state;
             ui_state2 = invalid_ui_state;
         }
@@ -480,7 +550,7 @@ class Game
             }
         }
 
-        void pushCommandToTextBuffer(std::array<std::string, 2> command)
+        /*void pushCommandToTextBuffer(std::vector<std::string> command)
         {
             makeSpaceTextBuffer();
             size_t w1 = getTextLen(command[0]);
@@ -491,7 +561,7 @@ class Game
             auto& line = text_buffer.emplace_back();
             line.emplace_back(std::move(command[0]), WHITE, x, y, w1);
             line.emplace_back(std::move(command[1]), WHITE, x2, y, w2);
-        }
+        }*/
 
         void pushTextToTextBuffer(const std::vector<std::string>& words, const std::vector<SDL_Color>& colors)
         {
@@ -519,12 +589,13 @@ class Game
             }
         }
 
-        void drawText(const std::string& text, const float& x, const float& y, size_t w, const SDL_Color& color = WHITE) const
+        void drawText(const std::string& text, const float& x, const float& y, size_t w, const SDL_Color& color = WHITE,
+        const float& h = FONT_SIZE) const
         {
             SDL_Surface* text_surface = TTF_RenderText_Blended(font, text.c_str(), text.size(), color);
             SDL_Texture* text_texture = SDL_CreateTextureFromSurface(renderer, text_surface);
             SDL_DestroySurface(text_surface);
-            SDL_FRect dst {x, y, static_cast<float>(w), FONT_SIZE};
+            SDL_FRect dst {x, y, static_cast<float>(w), h};
             SDL_RenderTexture(renderer, text_texture, nullptr, &dst);
             SDL_DestroyTexture(text_texture);
         }
@@ -550,33 +621,14 @@ class Game
 
         void renderUI()
         {
-            if(ui_state2 == "progress" && player.getAction() != invalid_action)
-            {
-                std::string skill = player.getAction();
-                std::string skill_upper = skill;
-                skill_upper[0] = std::toupper(skill_upper[0]);
-                std::string text = skill_upper + " Lv." + std::to_string(player.getLevel(skill));
-                drawText(text, static_cast<float>(VLINE_OFFSET_RAW), static_cast<float>(HLINE_OFFSET - FONT_SIZE), 
-                        getTextLen(text));
-                size_t num_rects = std::min(player.expProgress(skill), PROGRESSBAR_PARTITIONS);
-                for(size_t i = 0; i < num_rects; i++)
-                {
-                    SDL_FRect progress_rect {static_cast<float>(VLINE_OFFSET_RAW + i * (PROGRESS_BAR_WIDTH + PROGRESSBAR_SPACING)), 
-                                            static_cast<float>(HLINE_OFFSET),
-                                            static_cast<float>(PROGRESS_BAR_WIDTH),
-                                            static_cast<float>(FONT_SIZE / 2.0f)};
-                    SDL_SetRenderDrawColor(renderer, WHITE.r, WHITE.g, WHITE.b, WHITE.a);
-                    SDL_RenderFillRect(renderer, &progress_rect);
-                }
-            }
             if(ui_state == "inventory")
             {
                 SDL_SetRenderDrawColor(renderer, INVENTORY_LINE_COLOR.r, INVENTORY_LINE_COLOR.g, INVENTORY_LINE_COLOR.b, INVENTORY_LINE_COLOR.a);
                 //horizontal lines
                 for(size_t i = 0; i < INVENTORY_BOXES_PER_COL + 1; i++)
                 {
-                    float y = static_cast<float>(i * INVENTORY_BOX_HEIGHT + i * INVENTORY_LINE_WIDTH);
-                    for(size_t w = 0; w < INVENTORY_LINE_WIDTH; w++)
+                    float y = static_cast<float>(i * INVENTORY_BOX_HEIGHT + i * LINE_WIDTH);
+                    for(size_t w = 0; w < LINE_WIDTH; w++)
                     {
                         float wf = static_cast<float>(w);
                         SDL_RenderLine(renderer, static_cast<float>(VLINE_OFFSET_RAW), y + wf, static_cast<float>(SCREEN_WIDTH - 1), y + wf);
@@ -585,8 +637,8 @@ class Game
                 //vertical lines
                 for(size_t i = 0; i < INVENTORY_BOXES_PER_ROW + 1; i++)
                 {
-                    float x = static_cast<float>((VLINE_OFFSET_RAW - 2) + i * INVENTORY_BOX_WIDTH + i * INVENTORY_LINE_WIDTH + 1);
-                    for(size_t w = 0; w < INVENTORY_LINE_WIDTH; w++)
+                    float x = static_cast<float>((VLINE_OFFSET_RAW - 2) + i * INVENTORY_BOX_WIDTH + i * LINE_WIDTH + 1);
+                    for(size_t w = 0; w < LINE_WIDTH; w++)
                     {
                         if(!(i == 0 && w == 0))
                         {
@@ -602,11 +654,11 @@ class Game
                 {
                     size_t row = i / INVENTORY_BOXES_PER_ROW;
                     size_t col = i % INVENTORY_BOXES_PER_ROW;
-                    float x = static_cast<float>((VLINE_OFFSET_RAW - 1) + col * (INVENTORY_LINE_WIDTH + INVENTORY_BOX_WIDTH) + INVENTORY_LINE_WIDTH);
-                    float y = static_cast<float>(row * (INVENTORY_LINE_WIDTH + INVENTORY_BOX_HEIGHT) + INVENTORY_LINE_WIDTH);
+                    float x = static_cast<float>((VLINE_OFFSET_RAW - 1) + col * (LINE_WIDTH + INVENTORY_BOX_WIDTH) + LINE_WIDTH);
+                    float y = static_cast<float>(row * (LINE_WIDTH + INVENTORY_BOX_HEIGHT) + LINE_WIDTH);
                     SDL_FRect dst = {x, y, static_cast<float>(INVENTORY_BOX_WIDTH), static_cast<float>(INVENTORY_BOX_HEIGHT)};
                     SDL_RenderFillRect(renderer, &dst);
-                    if(inventory[i].has_value())
+                    if(inventory[i])
                     {
                         SDL_Texture* tex = IMG_LoadTexture(renderer, inventory[i]->path.c_str());
                         if(!tex)
@@ -618,6 +670,85 @@ class Game
                         
                         SDL_RenderTexture(renderer, tex, nullptr, &dst);
                         SDL_DestroyTexture(tex);
+                    }
+                }
+            }
+
+            if(ui_state2 == "progress")
+            {
+                if(player.getAction() != invalid_action)
+                {
+                    std::string skill = player.getAction();
+                    std::string skill_upper = skill;
+                    skill_upper[0] = std::toupper(skill_upper[0]);
+                    std::string text = skill_upper + " Lv." + std::to_string(player.getLevel(skill));
+                    drawText(text, static_cast<float>(VLINE_OFFSET_RAW), static_cast<float>(HLINE_OFFSET - FONT_SIZE), 
+                            getTextLen(text));
+                    size_t num_rects = std::min(player.expProgress(skill), PROGRESSBAR_PARTITIONS);
+                    for(size_t i = 0; i < num_rects; i++)
+                    {
+                        SDL_FRect progress_rect {static_cast<float>(VLINE_OFFSET_RAW + i * (PROGRESS_BAR_WIDTH + PROGRESSBAR_SPACING)), 
+                                                static_cast<float>(HLINE_OFFSET),
+                                                static_cast<float>(PROGRESS_BAR_WIDTH),
+                                                static_cast<float>(FONT_SIZE / 2.0f)};
+                        SDL_SetRenderDrawColor(renderer, WHITE.r, WHITE.g, WHITE.b, WHITE.a);
+                        SDL_RenderFillRect(renderer, &progress_rect);
+                    }
+                }
+            }
+            
+            else if(ui_state2 == "vault")
+            {
+                SDL_SetRenderDrawColor(renderer, INVENTORY_LINE_COLOR.r, INVENTORY_LINE_COLOR.g, INVENTORY_LINE_COLOR.b, INVENTORY_LINE_COLOR.a);
+                //horizontal lines
+                for(size_t i = 0; i < VAULT_BOXES_PER_COL + 1; i++)
+                {
+                    float y = static_cast<float>(INVENTORY_END + INVENTORY_VAULT_V_OFFSET + i * VAULT_BOX_HEIGHT + i * LINE_WIDTH);
+                    for(size_t w = 0; w < LINE_WIDTH; w++)
+                    {
+                        float wf = static_cast<float>(w);
+                        SDL_RenderLine(renderer, static_cast<float>(VLINE_OFFSET_RAW), y + wf, static_cast<float>(SCREEN_WIDTH - 1), y + wf);
+                    }
+                }
+                //vertical lines
+                for(size_t i = 0; i < VAULT_BOXES_PER_ROW + 1; i++)
+                {
+                    float x = static_cast<float>((VLINE_OFFSET_RAW - 2) + i * VAULT_BOX_WIDTH + i * LINE_WIDTH + 1);
+                    for(size_t w = 0; w < LINE_WIDTH; w++)
+                    {
+                        if(!(i == 0 && w == 0))
+                        {
+                            float wf = static_cast<float>(w);
+                            SDL_RenderLine(renderer, x + wf, INVENTORY_END + INVENTORY_VAULT_V_OFFSET, x + wf, static_cast<float>(VAULT_END - 1));
+                        }
+                    }
+                }
+                //vault boxes
+                SDL_SetRenderDrawColor(renderer, INVENTORY_BOX_COLOR.r, INVENTORY_BOX_COLOR.g, INVENTORY_BOX_COLOR.b, INVENTORY_BOX_COLOR.a);
+                auto vault = player.getVault();
+                for (size_t i = 0; i < VAULT_SIZE; i++)
+                {
+                    size_t row = i / VAULT_BOXES_PER_ROW;
+                    size_t col = i % VAULT_BOXES_PER_ROW;
+                    float x = static_cast<float>((VLINE_OFFSET_RAW - 1) + col * (LINE_WIDTH + VAULT_BOX_WIDTH) + LINE_WIDTH);
+                    float y = static_cast<float>(row * (LINE_WIDTH + VAULT_BOX_HEIGHT) + INVENTORY_END + INVENTORY_VAULT_V_OFFSET + LINE_WIDTH);
+                    SDL_FRect dst = {x, y, static_cast<float>(VAULT_BOX_WIDTH), static_cast<float>(VAULT_BOX_HEIGHT)};
+                    SDL_RenderFillRect(renderer, &dst);
+                    if(vault[i])
+                    {
+                        SDL_Texture* tex = IMG_LoadTexture(renderer, vault[i]->first.path.c_str());
+                        if(!tex)
+                        {
+                            std::cerr<<"Failed to create window: "<<SDL_GetError()<< "\n";
+                            game_state = GameState::QUIT;
+                            break;
+                        }
+                        
+                        SDL_RenderTexture(renderer, tex, nullptr, &dst);
+                        SDL_DestroyTexture(tex);
+
+                        std::string text = std::to_string(vault[i]->second);
+                        drawText(text, x + dst.w - getTextLen(text), y, getTextLen(text), WHITE, FONT_SIZE/1.5f);
                     }
                 }
             }
