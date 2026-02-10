@@ -15,11 +15,10 @@
 //screen dimensions
 constexpr size_t SCREEN_WIDTH  = 1366;
 constexpr size_t SCREEN_HEIGHT = 768;
-constexpr size_t TEXT_LINES = 32; // includes 1 line for commands
 
 //font
 constexpr const char* FONT_PATH = "assets/VT323-Regular.ttf";
-constexpr float FONT_SIZE = static_cast<float>(SCREEN_HEIGHT/TEXT_LINES);
+constexpr float FONT_SIZE = 24.0f;
 
 //assets
 constexpr std::string ASSET_SPRITE_PATH = "assets/sprites/";
@@ -39,6 +38,9 @@ constexpr size_t SAVE_MENU_BOX_HEIGHT = static_cast<size_t>(FONT_SIZE * 3.0f + 0
 //UI dimensions
 constexpr size_t UI_SCALE = 4; //Should take values [1, 2, 4, 8, 16]
 constexpr size_t LINE_WIDTH = 4; //LINE WIDTH SHOULD BE > 1
+
+//verbose lines
+constexpr size_t NUM_LINES = 5;
 
 //inventory dimensions
 constexpr size_t INVENTORY_BOX_WIDTH = 8 * UI_SCALE;

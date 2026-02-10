@@ -78,25 +78,6 @@ const std::unordered_map<std::string_view, Object> object_list
     {"gold ore", Object("gold ore", "gold_ore.png")},
 };
 
-struct InitResources {
-    InitResources() {
-        // touch object_list first
-        (void)object_list.size();
-    }
-};
-
-const InitResources init_resources;
-
-//name, objects, min_levels, exps, drop_rates
-const std::unordered_map<std::string_view, Resource> resource_list
-{
-    {"ground", Resource("ground", {object_list.at("stone"), object_list.at("stick")}, {1, 1}, {4, 4}, {5, 5})},
-    {"copper", Resource("copper", {object_list.at("copper ore")}, {1}, {4}, {5})},
-    {"tin", Resource("tin", {object_list.at("tin ore")}, {1}, {4}, {5})},
-    {"iron", Resource("iron", {object_list.at("iron ore")}, {10}, {20}, {10})},
-    {"gold", Resource("gold", {object_list.at("gold ore")}, {20}, {30}, {15})}
-};
-
 //tools
 const std::unordered_map<std::string_view, Tool> tool_list
 {

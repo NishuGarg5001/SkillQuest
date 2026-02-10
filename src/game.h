@@ -55,11 +55,14 @@ class Game
     Menu save_menu = Menu({"Slot 1", "Slot 2", "Slot 3"}, SAVE_MENU_BOX_WIDTH, SAVE_MENU_BOX_HEIGHT);
     const Resource* player_resource_target;
     const Object* player_item_target;
-    const std::array<Resource, 3> game_resources =
+    //name, objects, min_levels, exps, drop_rates
+    const std::unordered_map<std::string_view, Resource> game_resources
     {
-        resource_list.at("ground"),
-        resource_list.at("copper"),
-        resource_list.at("tin")
+        {"ground", Resource("ground", {object_list.at("stone"), object_list.at("stick")}, {1, 1}, {4, 4}, {5, 5})},
+        {"copper", Resource("copper", {object_list.at("copper ore")}, {1}, {4}, {5})},
+        {"tin", Resource("tin", {object_list.at("tin ore")}, {1}, {4}, {5})},
+        {"iron", Resource("iron", {object_list.at("iron ore")}, {10}, {20}, {10})},
+        {"gold", Resource("gold", {object_list.at("gold ore")}, {20}, {30}, {15})}
     };
 
     public:
@@ -375,13 +378,11 @@ class Game
 
         bool setPlayerTarget(const std::string& item)
         {
-            for (const Resource& resource : game_resources)
+            auto it = game_resources.find(item);
+            if (it != game_resources.end())
             {
-                if(resource.name == item)
-                {
-                    player_resource_target = &resource;
-                    return true;
-                }
+                player_resource_target = &it->second;
+                return true;
             }
             player_resource_target = nullptr;
             return false;
@@ -418,6 +419,8 @@ class Game
                             return;
                         }
                         player.startAction(skill);
+                        pushTextToTextBuffer({"You", "started", "to", split_command[0], split_command[1] + "..."},
+                                            {WHITE, WHITE, WHITE, WHITE, WHITE, WHITE});
                     }
                 }
                 break;
@@ -539,15 +542,18 @@ class Game
             return static_cast<size_t>(w);
         }
 
+        void shiftTextUp()
+        {
+            for (auto& line : text_buffer)
+                for (auto& word : line)
+                    word.pos_y -= FONT_SIZE;
+        }
+
         void makeSpaceTextBuffer()
         {
-            if(text_buffer.size() * static_cast<size_t>(FONT_SIZE) == HLINE_OFFSET)
-            {
+            if(text_buffer.size() == NUM_LINES)
                 text_buffer.pop_front();
-                for (auto& line : text_buffer)
-                    for (auto& word : line)
-                        word.pos_y -= FONT_SIZE;
-            }
+            shiftTextUp();
         }
 
         /*void pushCommandToTextBuffer(std::vector<std::string> command)
@@ -575,7 +581,7 @@ class Game
                 if(buffer_counter + w <= VLINE_OFFSET)
                 {
                     float x = static_cast<float>(buffer_counter);
-                    float y = static_cast<float>(text_buffer.size() - 1) * FONT_SIZE;
+                    float y = static_cast<float>(HLINE_OFFSET - FONT_SIZE);
                     text_buffer.back().emplace_back(words[i], colors[i], x, y, w);
                     buffer_counter += w + space_size;
                 }

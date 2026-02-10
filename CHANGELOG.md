@@ -1,3 +1,7 @@
+#V 0.03826
+-Critical crash fix
+-Cleaned verbose and limited to 5 lines of text
+
 #V 0.0.3825
 -Added vault to store items
 -Added deposit command to deposit items to vault
