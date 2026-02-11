@@ -2,12 +2,11 @@
 #define CONSTANTS_H
 
 #include <iostream>
+#include <array>
 #include <vector>
 #include <deque>
-#include <unordered_map>
-#include <algorithm>
 #include <optional>
-#include <array>
+#include <unordered_map>
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
 #include <SDL3_image/SDL_image.h>
@@ -21,11 +20,11 @@ constexpr const char* FONT_PATH = "assets/VT323-Regular.ttf";
 constexpr float FONT_SIZE = 24.0f;
 
 //assets
-constexpr std::string ASSET_SPRITE_PATH = "assets/sprites/";
+const std::string ASSET_SPRITE_PATH_OBJECTS = "assets/sprites/objects/";
+const std::string ASSET_SPRITE_PATH_RESOURCES = "assets/sprites/resources/";
 
 //time constants
 constexpr Uint64 TICK = 600;
-constexpr Uint64 CURSOR_BLINK_TIME = 600;
 
 //menu dimensions
 constexpr size_t MAIN_MENU_BOX_WIDTH = 120;
@@ -35,56 +34,40 @@ constexpr size_t PAUSE_MENU_BOX_HEIGHT = static_cast<size_t>(FONT_SIZE * 3.0f + 
 constexpr size_t SAVE_MENU_BOX_WIDTH = 90;
 constexpr size_t SAVE_MENU_BOX_HEIGHT = static_cast<size_t>(FONT_SIZE * 3.0f + 0.2f * FONT_SIZE);
 
-//UI dimensions
-constexpr size_t UI_SCALE = 4; //Should take values [1, 2, 4, 8, 16]
-constexpr size_t LINE_WIDTH = 4; //LINE WIDTH SHOULD BE > 1
+//game screen dimensions
+constexpr float GS_X = 0;
+constexpr float GS_Y = 0;
+constexpr float GS_W = static_cast<float>(SCREEN_WIDTH) * 0.7f;
+constexpr float GS_H = static_cast<float>(SCREEN_HEIGHT) * 0.8f;
 
-//verbose lines
-constexpr size_t NUM_LINES = 5;
+//text screen dimensions
+constexpr float TS_X = 0;
+constexpr float TS_Y = GS_H;
+constexpr float TS_W = GS_W;
+constexpr float TS_H = static_cast<float>(SCREEN_HEIGHT) - GS_H;
+constexpr size_t NUM_LINES = static_cast<size_t>(TS_H / FONT_SIZE); 
 
-//inventory dimensions
-constexpr size_t INVENTORY_BOX_WIDTH = 8 * UI_SCALE;
-constexpr size_t INVENTORY_BOX_HEIGHT = 8 * UI_SCALE;
-constexpr size_t INVENTORY_BOXES_PER_ROW = 36 / UI_SCALE; //48
-constexpr size_t INVENTORY_BOXES_PER_COL = 24 / UI_SCALE; //32
-constexpr size_t INVENTORY_END = INVENTORY_BOX_HEIGHT * INVENTORY_BOXES_PER_COL + LINE_WIDTH * (INVENTORY_BOXES_PER_COL + 1);
+//Icons screen dimensions
+constexpr float IS_X = GS_W;
+constexpr float IS_Y = 0;
+constexpr float IS_W = static_cast<float>(SCREEN_WIDTH) - GS_W;
+constexpr float IS_H = static_cast<float>(SCREEN_HEIGHT) * 0.3f;
 
-constexpr size_t INVENTORY_VAULT_V_OFFSET = 10;
+//UI screen dimensions
+constexpr float UIS_X = IS_X;
+constexpr float UIS_Y = IS_H;
+constexpr float UIS_W = IS_W;
+constexpr float UIS_H = static_cast<float>(SCREEN_HEIGHT) - IS_H;
 
-//vault dimensions
-constexpr size_t VAULT_BOX_WIDTH = INVENTORY_BOX_WIDTH;
-constexpr size_t VAULT_BOX_HEIGHT = INVENTORY_BOX_HEIGHT;
-constexpr size_t VAULT_BOXES_PER_ROW = INVENTORY_BOXES_PER_ROW;
-constexpr size_t VAULT_BOXES_PER_COL = INVENTORY_BOXES_PER_COL + UI_SCALE;
-constexpr size_t VAULT_END = INVENTORY_END + INVENTORY_VAULT_V_OFFSET + VAULT_BOX_HEIGHT * VAULT_BOXES_PER_COL + LINE_WIDTH * (VAULT_BOXES_PER_COL + 1);
+//Grid
+constexpr size_t GRID_BOX_HEIGHT = 32;
+constexpr size_t GRID_BOX_WIDTH = 32;
+constexpr size_t GRID_LINE_WIDTH = 3;
+constexpr SDL_Color GRID_BOX_COLOR = {187, 117, 71, 255};
+constexpr SDL_Color GRID_LINE_COLOR = {91, 49, 56, 255};
 
-constexpr size_t HLINE_OFFSET = SCREEN_HEIGHT - static_cast<size_t>(FONT_SIZE);
-constexpr size_t VLINE_OFFSET_RAW = SCREEN_WIDTH - (INVENTORY_BOXES_PER_ROW + 1) * LINE_WIDTH - (INVENTORY_BOX_WIDTH * INVENTORY_BOXES_PER_ROW) + 1;
-constexpr size_t CURSOR_WIDTH = 8;
-constexpr size_t VLINE_OFFSET = VLINE_OFFSET_RAW - CURSOR_WIDTH;
-//constexpr size_t NUM_LINES = HLINE_OFFSET / static_cast<size_t>(FONT_SIZE);
-
-constexpr size_t PROGRESSBAR_PARTITIONS = 30;
-constexpr size_t PROGRESSBAR_SPACING = 2;
-constexpr size_t PROGRESS_BAR_WIDTH = (SCREEN_WIDTH - VLINE_OFFSET_RAW - (PROGRESSBAR_PARTITIONS - 1) * PROGRESSBAR_SPACING) / 
-                                        PROGRESSBAR_PARTITIONS;
-
-//Game constants
-constexpr size_t INVENTORY_SIZE = INVENTORY_BOXES_PER_ROW * INVENTORY_BOXES_PER_COL;
-constexpr size_t VAULT_SIZE = VAULT_BOXES_PER_ROW * VAULT_BOXES_PER_COL;
-constexpr size_t NUM_TOOLS = 1;
-constexpr std::string invalid_ui_state = "";
-constexpr std::string invalid_target = "";
-constexpr std::string invalid_action = "";
-const std::array<std::string, 5> valid_actions = {"stop", "mine", "search", "view", "deposit"};
-const std::array<std::string, 1> valid_forage_sources = {"ground"};
-const std::array<std::string, 4> valid_mining_sources = {"copper", "tin", "iron", "gold"};
-const std::array<std::string, 3> skills_list = {"health", "foraging", "mining"};
-const std::array<std::string, 3> valid_ui_states = {"progress", "inventory", "vault"};
-const std::array<int, 3> starting_levels = {10, 1, 1};
-
-//item list
-const std::array<std::string, 6> valid_items = {"stone", "stick", "copper ore", "tin ore", "iron ore", "gold ore"};
+//INVENTORY
+constexpr size_t INVENTORY_SIZE = 50;
 
 //Colors
 constexpr SDL_Color WHITE = {255, 255, 255, 255};
@@ -93,17 +76,6 @@ constexpr SDL_Color BROWN = {165, 42, 42, 255};
 constexpr SDL_Color YELLOW = {255, 255, 0, 255};
 constexpr SDL_Color ORANGE = {255, 165, 0, 255};
 constexpr SDL_Color RED = {255, 0, 0, 255};
-constexpr SDL_Color INVENTORY_BOX_COLOR = {187, 117, 71, 255};
-constexpr SDL_Color INVENTORY_LINE_COLOR = {91, 49, 56, 255};
-
-enum class Rarity
-{
-    ALWAYS,
-    COMMON,
-    UNCOMMON,
-    RARE,
-    VERY_RARE
-};
 
 enum class GameState : int
 {
@@ -114,15 +86,70 @@ enum class GameState : int
     SAVE
 };
 
+enum class PlayerState : int
+{
+    IDLE,
+    MINING
+};
+
+enum class ResourceName : int
+{
+    GROUND,
+    COPPER,
+    TIN,
+    IRON,
+    GOLD
+};
+
+enum class ObjectName : int
+{
+    STONE,
+    STICK,
+    COPPER_ORE,
+    TIN_ORE,
+    IRON_ORE,
+    GOLD_ORE
+};
+
+enum class Rarity
+{
+    ALWAYS,
+    COMMON,
+    UNCOMMON,
+    RARE,
+    VERY_RARE
+};
+
+using enum PlayerState;
+using enum ResourceName;
+using enum ObjectName;
 using enum Rarity;
 
-std::string action_to_skill(std::string_view action)
+std::string resource_name_to_string(ResourceName res_name)
 {
-    if(action == "search")
-        return "foraging";
-    if(action == "mine")
-        return "mining";
-    return invalid_action;
+    switch(res_name)
+    {
+        case GROUND: return "ground";
+        case COPPER: return "copper";
+        case TIN: return "tin";
+        case IRON: return "iron";
+        case GOLD: return "gold";
+        default: return "";
+    }
+}
+
+std::string object_name_to_string(ObjectName obj_name)
+{
+    switch(obj_name)
+    {
+        case STONE: return "stone";
+        case STICK: return "stick";
+        case COPPER_ORE: return "copper ore";
+        case TIN_ORE: return "tin ore";
+        case IRON_ORE: return "iron ore";
+        case GOLD_ORE: return "gold ore";
+        default: return "";
+    }
 }
 
 int level_exp_mapping(int level)

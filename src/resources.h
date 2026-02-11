@@ -5,44 +5,36 @@
 
 struct Object
 {
-    const std::string name;
+    const ObjectName name;
+    const std::string name_str;
     const std::string path;
 
-    explicit Object(std::string name, std::string path) :
-    name(std::move(name)),
-    path(std::move(ASSET_SPRITE_PATH + path))
-    {}
-};
-
-struct Tool : Object
-{
-    const std::string skill;
-    explicit Tool(std::string name, std::string path, std::string skill) :
-    Object(std::move(name), std::move(path)),
-    skill(std::move(skill))
+    explicit Object(ObjectName name, std::string path) :
+    name(name),
+    name_str(object_name_to_string(name)),
+    path(std::move(ASSET_SPRITE_PATH_OBJECTS + path))
     {}
 };
 
 struct Resource
 {
-    const std::string name;
+    const ResourceName name;
+    const std::string name_str;
+    const std::string path;
     const std::vector<Object> objects;
-    const std::vector<int> object_levels, exps, drop_rates; 
+    const std::vector<int> drop_rates; 
     //minimum levels to extract that object
     //exps gained from extracting that object
     //drop rates for that object
-    const int resource_min_level; //minimum level to use resource = min(object_levels)
     const std::vector<Rarity> rarities;
     const std::vector<SDL_Color> rarity_colors;
     const size_t len;
 
-    explicit Resource(std::string name, std::vector<Object> objects, std::vector<int> object_levels,
-    std::vector<int> exps, std::vector<int> drop_rates) :
-    name(std::move(name)),
+    explicit Resource(ResourceName name, std::string path, std::vector<Object> objects, std::vector<int> drop_rates) :
+    name(name),
+    name_str(resource_name_to_string(name)),
+    path(std::move(ASSET_SPRITE_PATH_RESOURCES + path)),
     objects(std::move(objects)),
-    object_levels(std::move(object_levels)),
-    resource_min_level(*std::min_element(this->object_levels.begin(), this->object_levels.end())),
-    exps(std::move(exps)),
     drop_rates(std::move(drop_rates)),
     rarities(std::move(drop_rate_to_rarity(this->drop_rates))),
     rarity_colors(std::move(rarity_to_color(this->rarities))),
@@ -52,36 +44,30 @@ struct Resource
 
 struct DropResult
 {
-    const std::string obj_name;
+    const ObjectName obj_name;
+    const std::string obj_name_str;
     const Rarity rarity;
     SDL_Color rarity_color;
-    const int exp;
 
-    explicit DropResult(std::string obj_name, Rarity rarity, SDL_Color rarity_color, int exp) :
-    obj_name(std::move(obj_name)),
+    explicit DropResult(ObjectName obj_name, Rarity rarity, SDL_Color rarity_color) :
+    obj_name(obj_name),
+    obj_name_str(object_name_to_string(obj_name)),
     rarity(rarity),
-    rarity_color(rarity_color),
-    exp(exp)
+    rarity_color(rarity_color)
     {}
 };
 
 
 //actual game resources
 //objects
-const std::unordered_map<std::string_view, Object> object_list
+const std::unordered_map<ObjectName, Object> object_list
 {
-    {"stone", Object("stone", "stone.png")},
-    {"stick", Object("stick", "stick.png")},
-    {"copper ore", Object("copper ore", "copper_ore.png")},
-    {"tin ore", Object("tin ore", "tin_ore.png")},
-    {"iron ore", Object("iron ore", "iron_ore.png")},
-    {"gold ore", Object("gold ore", "gold_ore.png")},
-};
-
-//tools
-const std::unordered_map<std::string_view, Tool> tool_list
-{
-    {"stone pickaxe", Tool("stone pickaxe", "stone_pickaxe.png", "mining")}
+    {STONE, Object(STONE, "stone.png")},
+    {STICK, Object(STICK, "stick.png")},
+    {COPPER_ORE, Object(COPPER_ORE, "copper_ore.png")},
+    {TIN_ORE, Object(TIN_ORE, "tin_ore.png")},
+    {IRON_ORE, Object(IRON_ORE, "iron_ore.png")},
+    {GOLD_ORE, Object(GOLD_ORE, "gold_ore.png")},
 };
 
 #endif

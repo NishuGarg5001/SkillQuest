@@ -1,3 +1,13 @@
+#V 0.03830
+-Removed some features such as vault and foraging to streamline transition to textual to mouse/keyboard input
+-Simplified the code by a lot by removing all textual input handling
+-Removed skills, levels and experience for now to simplify gameplay, drop rates and rarities have been kept
+-Simplified Game class by splitting into multiple Screen classes, with each Screen class taking its role and Game class
+orchestrating the roles
+-Added resource sprites
+-Added resource table
+-Todo: Implement mouse input, re-implement vault with deposit and withdraw functionality, implement toolbelt and icons
+
 #V 0.03826
 -Critical crash fix
 -Cleaned verbose and limited to 5 lines of text
