@@ -34,11 +34,20 @@ constexpr size_t PAUSE_MENU_BOX_HEIGHT = static_cast<size_t>(FONT_SIZE * 3.0f + 
 constexpr size_t SAVE_MENU_BOX_WIDTH = 90;
 constexpr size_t SAVE_MENU_BOX_HEIGHT = static_cast<size_t>(FONT_SIZE * 3.0f + 0.2f * FONT_SIZE);
 
+//Grid
+constexpr size_t GRID_BOX_HEIGHT = 32;
+constexpr size_t GRID_BOX_WIDTH = 32;
+constexpr size_t GRID_LINE_WIDTH = 3;
+constexpr SDL_Color GRID_BOX_COLOR = {187, 117, 71, 255};
+constexpr SDL_Color GRID_LINE_COLOR = {91, 49, 56, 255};
+
 //game screen dimensions
 constexpr float GS_X = 0;
 constexpr float GS_Y = 0;
 constexpr float GS_W = static_cast<float>(SCREEN_WIDTH) * 0.7f;
 constexpr float GS_H = static_cast<float>(SCREEN_HEIGHT) * 0.8f;
+constexpr size_t GS_cellsX = static_cast<size_t>((GS_W - GRID_LINE_WIDTH)/(GRID_LINE_WIDTH + GRID_BOX_WIDTH));
+constexpr size_t GS_cellsY = static_cast<size_t>((GS_H - GRID_LINE_WIDTH)/(GRID_LINE_WIDTH + GRID_BOX_HEIGHT));
 
 //text screen dimensions
 constexpr float TS_X = 0;
@@ -47,7 +56,7 @@ constexpr float TS_W = GS_W;
 constexpr float TS_H = static_cast<float>(SCREEN_HEIGHT) - GS_H;
 constexpr size_t NUM_LINES = static_cast<size_t>(TS_H / FONT_SIZE); 
 
-//Icons screen dimensions
+//icons screen dimensions
 constexpr float IS_X = GS_W;
 constexpr float IS_Y = 0;
 constexpr float IS_W = static_cast<float>(SCREEN_WIDTH) - GS_W;
@@ -58,13 +67,8 @@ constexpr float UIS_X = IS_X;
 constexpr float UIS_Y = IS_H;
 constexpr float UIS_W = IS_W;
 constexpr float UIS_H = static_cast<float>(SCREEN_HEIGHT) - IS_H;
-
-//Grid
-constexpr size_t GRID_BOX_HEIGHT = 32;
-constexpr size_t GRID_BOX_WIDTH = 32;
-constexpr size_t GRID_LINE_WIDTH = 3;
-constexpr SDL_Color GRID_BOX_COLOR = {187, 117, 71, 255};
-constexpr SDL_Color GRID_LINE_COLOR = {91, 49, 56, 255};
+constexpr size_t UI_cellsX = static_cast<size_t>((UIS_W - GRID_LINE_WIDTH)/(GRID_LINE_WIDTH + GRID_BOX_WIDTH));
+constexpr size_t UI_cellsY = static_cast<size_t>((UIS_H - GRID_LINE_WIDTH)/(GRID_LINE_WIDTH + GRID_BOX_HEIGHT));
 
 //INVENTORY
 constexpr size_t INVENTORY_SIZE = 50;

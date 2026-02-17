@@ -16,7 +16,7 @@ class GameScreen : public Screen
     const Resource *player_resource_target = nullptr;
     std::vector<std::array<float, 4>> grid_hlines_params;
     std::vector<std::array<float, 4>> grid_vlines_params;
-    std::vector<std::array<float, 2>> resource_box_positions;
+    std::array<std::array<std::array<float, 2>, GS_cellsX>, GS_cellsY> resource_box_positions;
     GameScreenState state = GameScreenState::RESOURCES;
     const std::array<Resource, 4> game_resources = 
     {
@@ -32,35 +32,34 @@ class GameScreen : public Screen
             float stepX = GRID_LINE_WIDTH + GRID_BOX_WIDTH;
             float stepY = GRID_LINE_WIDTH + GRID_BOX_HEIGHT;
 
-            size_t cellsX = static_cast<size_t>((getWidth() - GRID_LINE_WIDTH)/stepX);
-            size_t cellsY = static_cast<size_t>((getHeight() - GRID_LINE_WIDTH)/stepY);
-
-            float total_grid_width = cellsX * stepX + GRID_LINE_WIDTH;
-            float total_grid_height = cellsY * stepY + GRID_LINE_WIDTH;
+            float total_grid_width = GS_cellsX * stepX + GRID_LINE_WIDTH;
+            float total_grid_height = GS_cellsY * stepY + GRID_LINE_WIDTH;
 
             float x1 = getX() + (getWidth() - total_grid_width)/2.0f;
             float y1 = getY() + (getHeight() - total_grid_height)/2.0f;
 
-            for(size_t i=0; i<=cellsY; i++)
-                for(size_t j=0; j<cellsX; j++)
+            for(size_t i=0; i<=GS_cellsY; i++)
+                for(size_t j=0; j<GS_cellsX; j++)
                     for(size_t k=0; k<GRID_LINE_WIDTH; k++)
-                        if(j != cellsX - 1)
+                        if(j != GS_cellsX - 1)
                             grid_hlines_params.push_back({x1 + j*stepX, y1 + i*stepY + k, x1 + (j+1)*stepX - 1.0f, y1 + i*stepY + k});
                         else
                             grid_hlines_params.push_back({x1 + j*stepX, y1 + i*stepY +k, x1 + (j+1)*stepX + GRID_LINE_WIDTH - 1.0f, y1 + i*stepY + k});
                 
-            for(size_t i=0; i<=cellsX; i++)
-                for(size_t j=0; j<cellsY; j++)
+            for(size_t i=0; i<=GS_cellsX; i++)
+                for(size_t j=0; j<GS_cellsY; j++)
                     for(size_t k=0; k<GRID_LINE_WIDTH; k++)
-                        if(j != cellsY - 1)
+                        if(j != GS_cellsY - 1)
                             grid_vlines_params.push_back({x1 + i*stepX + k, y1 + j*stepY, x1 + i*stepX +k, y1 + (j+1)*stepY - 1.0f});
                         else
                             grid_vlines_params.push_back({x1 + i*stepX + k, y1 + j*stepY, x1 + i*stepX + k, y1 + (j+1)*stepY + GRID_LINE_WIDTH - 1.0f});
 
-            size_t counter = 0;
-            for(size_t i=0; i<cellsY; i++)
-                for(size_t j=0; j<cellsX; j++)
-                    resource_box_positions.push_back({x1 + j*stepX + GRID_LINE_WIDTH, y1 + i*stepY + GRID_LINE_WIDTH});
+            for(size_t i=0; i<GS_cellsY; i++)
+                for(size_t j=0; j<GS_cellsX; j++)
+                {
+                    resource_box_positions[i][j][0] = x1 + j*stepX + GRID_LINE_WIDTH;
+                    resource_box_positions[i][j][1] = y1 + i*stepY + GRID_LINE_WIDTH;
+                }
         }
 
         void render(SDL_Renderer *renderer) const
@@ -81,17 +80,15 @@ class GameScreen : public Screen
         void renderResources(SDL_Renderer *renderer) const
         {
             renderGrid(renderer);
-            SDL_SetRenderDrawColor(renderer, GRID_BOX_COLOR.r, GRID_BOX_COLOR.g, GRID_BOX_COLOR.b, GRID_BOX_COLOR.a);
-            for(size_t i=0; i<resource_box_positions.size(); i++)
+            for(size_t i=0; i<game_resources.size(); i++)
             {
-                SDL_FRect dst = {resource_box_positions[i][0], resource_box_positions[i][1], static_cast<float>(GRID_BOX_WIDTH), static_cast<float>(GRID_BOX_HEIGHT)};
-                SDL_RenderFillRect(renderer, &dst);
-                if(i < game_resources.size())
-                {
-                    SDL_Texture* texture = IMG_LoadTexture(renderer, game_resources[i].path.c_str());
-                    SDL_RenderTexture(renderer, texture, nullptr, &dst);
-                    SDL_DestroyTexture(texture);
-                }
+                size_t x = i % GS_cellsX;
+                size_t y = i / GS_cellsX;
+                SDL_FRect dst = {resource_box_positions[y][x][0], resource_box_positions[y][x][1], static_cast<float>(GRID_BOX_WIDTH), static_cast<float>(GRID_BOX_HEIGHT)};
+                SDL_Texture* texture = IMG_LoadTexture(renderer, game_resources[i].path.c_str());
+                SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+                SDL_RenderTexture(renderer, texture, nullptr, &dst);
+                SDL_DestroyTexture(texture);
             }
         }
 
@@ -102,6 +99,13 @@ class GameScreen : public Screen
                 SDL_RenderLine(renderer, params[0], params[1], params[2], params[3]);
             for(const auto params : grid_vlines_params)
                 SDL_RenderLine(renderer, params[0], params[1], params[2], params[3]);
+            SDL_SetRenderDrawColor(renderer, GRID_BOX_COLOR.r, GRID_BOX_COLOR.g, GRID_BOX_COLOR.b, GRID_BOX_COLOR.a);
+            for(size_t y=0; y<resource_box_positions.size(); y++)
+                for(size_t x=0; x<resource_box_positions[y].size(); x++)
+                {
+                    SDL_FRect dst = {resource_box_positions[y][x][0], resource_box_positions[y][x][1], static_cast<float>(GRID_BOX_WIDTH), static_cast<float>(GRID_BOX_HEIGHT)};
+                    SDL_RenderFillRect(renderer, &dst);
+                }
         }
 
         bool setPlayerTarget(ResourceName item)
@@ -143,6 +147,38 @@ class GameScreen : public Screen
         void stopExtraction()
         {
             player_resource_target = nullptr;
+        }
+
+        int handleMouseClick(int x, int y)
+        {
+            float stepX = GRID_LINE_WIDTH + GRID_BOX_WIDTH;
+            float stepY = GRID_LINE_WIDTH + GRID_BOX_HEIGHT;
+
+            float total_grid_width = GS_cellsX * stepX + GRID_LINE_WIDTH;
+            float total_grid_height = GS_cellsY * stepY + GRID_LINE_WIDTH;
+
+            float x1 = getX() + (getWidth() - total_grid_width)/2.0f;
+            float y1 = getY() + (getHeight() - total_grid_height)/2.0f;
+
+            float posx = x - x1;
+            float posy = y - y1;
+
+            if(posx < 0 || posy < 0)
+                return -1;
+
+            float localX = fmod(posx, stepX);
+            float localY = fmod(posy, stepY);
+
+            if (localX < GRID_LINE_WIDTH || localY < GRID_LINE_WIDTH)
+                return -1;
+
+            x = static_cast<int>(posx / stepX);
+            y = static_cast<int>(posy / stepY);
+
+            if((x >= GS_cellsX) || (y >= GS_cellsY))
+                return -1;
+
+            return y * GS_cellsX + x;
         }
 };
 

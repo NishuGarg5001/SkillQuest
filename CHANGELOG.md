@@ -1,3 +1,8 @@
+#V 0.03831
+-Added mouse input, functionality to mine ores using mouse click
+-Fixed sprites to use nearest neighbour interpolation
+-Todo: icons to switch screen states, re-implement vault with deposit and withdraw functionality, toolbelt
+
 #V 0.03830
 -Removed some features such as vault and foraging to streamline transition to textual to mouse/keyboard input
 -Simplified the code by a lot by removing all textual input handling

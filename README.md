@@ -1,4 +1,4 @@
-This project is my implementation of a text-based adventure in SDL3.
+This project is my implementation of a simple crafting game in SDL3.
 Project direction/implementation may change drastically in future.
 Currently only has some minimally functioning menus, minimal support for mining skill.
 
@@ -17,12 +17,6 @@ g++ -std=c++20 main.cpp -o main.exe -LC:/msys64/ucrt64/lib/ -lSDL3 -lSDL3_image 
 
 controls:
 ESC --> open menus
-ENTER --> enter your command / select menu item
 
 valid game commands:
-mine copper --> mine copper resource to get copper ores
-search ground --> forage ground for basic items like stone and stick
-view inventory --> view your inventory
-view progress --> view skill progress when training
-view vault --> view your vault
-deposit item name q --> deposity q quantity of item to vault for eg. deposit copper ore 10 --> deposits 10 x copper ore to vault
+Use mouse click to mine resources

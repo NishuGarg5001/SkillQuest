@@ -140,7 +140,46 @@ class Game
                     }
                     case GameState::RUNNING:
                     {
-                        if(event.type == SDL_EVENT_KEY_DOWN)
+                        if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+                        {
+                            if(event.button.button == SDL_BUTTON_LEFT)
+                            {
+                                if(event.button.x < game_screen.getWidth() && event.button.y < game_screen.getHeight())
+                                {
+                                    int res = game_screen.handleMouseClick(event.button.x, event.button.y);
+                                    switch(res)
+                                    {
+                                        case -1:
+                                        break;
+                                        case 0:
+                                        game_screen.setPlayerTarget(COPPER);
+                                        break;
+                                        case 1:
+                                        game_screen.setPlayerTarget(TIN);
+                                        break;
+                                        case 2:
+                                        game_screen.setPlayerTarget(IRON);
+                                        break;
+                                        case 3:
+                                        game_screen.setPlayerTarget(GOLD);
+                                        break;
+
+                                    }
+                                    switch(res)
+                                    {
+                                        case -1:
+                                        break;
+                                        case 0 ... 3:
+                                        ui_screen.setState(UIState::INVENTORY);
+                                        player.startAction(MINING);
+                                        text_screen.startedMining(game_screen.getPlayerTarget()->name_str, font);
+                                        break;
+                                    }
+                                }
+                            }
+
+                        }
+                        else if(event.type == SDL_EVENT_KEY_DOWN)
                         {
                             if(!event.key.repeat)
                             {
@@ -149,14 +188,6 @@ class Game
                                     case SDLK_ESCAPE:
                                     {
                                         game_state = GameState::PAUSE;
-                                        break;
-                                    }
-                                    case SDLK_M:
-                                    {
-                                        game_screen.setPlayerTarget(COPPER);
-                                        ui_screen.setState(UIState::INVENTORY);
-                                        player.startAction(MINING);
-                                        text_screen.startedMining(game_screen.getPlayerTarget()->name_str, font);
                                         break;
                                     }
                                     default:
